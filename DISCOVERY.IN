@@ -1,0 +1,56 @@
+!-----------------
+  \START
+!-----------------
+  \INPUT
+!-----------------      
+        \GLOBAL
+   	  PROJECT:  PATCH_TEST2_MFS
+	  NUMNP:           5 
+          NPORMAX:         6
+	  NMAT:            1
+	  NBGROUP:         1
+	  NEGROUP:         1
+	  DYNAMIC:         0
+!
+          CONTACT:         0 
+          NSPAIR:          0
+	\END
+	\NODE  !N  ID(3,N)   X    Y    Z   NDOF(3,N)  KN
+		1   0 0 1    0    0    0   5  6  0    0
+                2   0 0 1   10    0    0   6  6  0    0
+	  	3   0 0 1   10   10    0   6  6  0    0
+  		4   0 0 1    0   10    0   5  5  0    0
+		5   0 0 1    5    5    0   6  6  0    0
+		0   0 0 0    0    0    0   0  0  0    0 
+ 	\MATERIAL !SET    E    PR   DENSITY  THIC
+	            1   2e5   0.3     1560    1
+		    0     0     0        0    0
+	\ELEMENT
+	\QUADS_MFS
+	 ITYPE: 1  MTYPE: 1  NUMELE: 5  ELEASS: 5
+	\END    !N  NODE  IND(2,N) RAD(2,N) RADIUS  KN 
+		 1   1     1    2   0  10    10     0
+	 	 2   2     2    2   0  10    10     0
+		 3   3     2    2   0  10    10     0
+		 4   4     1    1   0  10    10     0
+		 5   5     0    0   0   5     5     0
+		 0   0     0    0   0   0     0     0
+        \BOUNDARY
+        \LINE 
+         NUMBC: 4
+        \END ! N  ELE1 ELE2  IND(2,N) FLOAD(2,N) FUNC(2,N)  KN
+ 	       1   1    2     2  2     0 -0.2      1   1     0
+	       2   2    3     2  2   0.2    0      1   1     0
+               3   3    4     2  2     0  0.2      1   1     0
+	       4   4    1     2  2  -0.2    0      1   1     0
+               0   0    0     0  0     0    0      0   0     0	  
+\END{INPUT}
+!-----------------
+  \GENERATE
+!-----------------
+  \STATIC_SOLVER
+!-----------------
+  \END 
+!-----------------
+ 
+

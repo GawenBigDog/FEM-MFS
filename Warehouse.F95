@@ -1,0 +1,352 @@
+module WAREHOUSE
+    implicit none
+    PUBLIC :: ALLOCATEM
+    PUBLIC :: RELEASE
+!{{{
+!        CONSTANTS
+         REAL(8), PARAMETER :: Pi=3.14159265354
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE GLOBALD
+!--------------------------------------------------
+         CHARACTER(256) :: HEAD='HEAD: TEST'
+         INTEGER :: NUMNP   = 0
+         INTEGER :: NLOAD   = 0
+         INTEGER :: NBOUND  = 0
+         INTEGER :: NMAT    = 0  
+         INTEGER :: NBGROUP = 0       
+         INTEGER :: NEGROUP = 0
+         INTEGER :: NSPAIR  = 0
+         INTEGER :: DYNAMIC = 0
+         INTEGER :: CONTACT = 0
+         INTEGER :: NPOR_MAX= 0
+!
+         INTEGER :: NEQ     = 0
+         INTEGER :: NCQ     = 0
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE NODED (FEM)
+!--------------------------------------------------
+         INTEGER,DIMENSION(:,:),  ALLOCATABLE :: ID
+         REAL(8),DIMENSION(:),    ALLOCATABLE :: X
+         REAL(8),DIMENSION(:),    ALLOCATABLE :: Y
+         REAL(8),DIMENSION(:),    ALLOCATABLE :: Z
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE MATERIALD 
+!--------------------------------------------------
+!   CONSTITUTIVE MATRIX 
+         REAL(8),DIMENSION(:),  ALLOCATABLE :: KCS
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE NODED (MFS)
+!        THE DEGREE OF FREEDOM
+!--------------------------------------------------       
+         INTEGER,DIMENSION(:,:),    ALLOCATABLE :: NDOF       
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE LOADD
+!--------------------------------------------------
+!
+         REAL(8),DIMENSION(:), ALLOCATABLE :: R
+         INTEGER,DIMENSION(:), ALLOCATABLE :: NRF
+!
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: RNAT
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: RESS
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE BOUNDD
+!--------------------------------------------------
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE INITLD
+!--------------------------------------------------
+         INTEGER :: IND_INITIAL=0
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: UI
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: VI
+         REAL(8),DIMENSION(:),   ALLOCATABLE :: U
+         REAL(8),DIMENSION(:),   ALLOCATABLE :: V
+         REAL(8),DIMENSION(:),   ALLOCATABLE :: ACC
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE MATERIALD
+!--------------------------------------------------
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: MATP
+
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE BOUNDARY
+!--------------------------------------------------
+         INTEGER,DIMENSION(:,:), ALLOCATABLE :: BCED
+         INTEGER,DIMENSION(:,:), ALLOCATABLE :: BCIND
+         REAL(8),DIMENSION(:,:), ALLOCATABLE :: BCPAR        
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE ELEMENT_IN
+!**************************************************
+!   TRUSS
+!       NPAR(1) = 1
+!       NPAR(2) = MTYPE
+!       NPAR(3) = NUMELE
+!   QUADS
+!       NPAR(1) = 2
+!       NPAR(2) = ELEMENT TYPE
+!                 0: AXISYMMETRIC
+!                 1: PLANE STRAIN
+!                 2: PLANE STRESS
+!       NPAR(3) = MTYPE
+!       NPAR(4) = NUMELE
+!       NPAR(5) = NINTG
+!--------------------------------------------------
+         INTEGER,DIMENSION(7) :: NPAR
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE ELEMENTS (FEM)
+!--------------------------------------------------
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XYZ
+         INTEGER,DIMENSION(:,:),   ALLOCATABLE :: LM
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: ELEPAR     
+!-------------------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE ELEMENTS (MFS)
+!        STORING NODE NUMBER OF THE METHODS OF FINITE SPHERES
+!        MFS_ITP :  INTEGRATION POINT
+!        NITP    :  NUMBER OF INTEGRATION POINTS
+!-------------------------------------------------------------
+         INTEGER,PARAMETER                     :: NITP=200
+         INTEGER,DIMENSION(:,:),   ALLOCATABLE :: NDMFS
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: MFS_ITP_XYZDIV
+! NUMBER OF INTEGRATION POINTS                            
+         INTEGER,PARAMETER                     :: NITP_BC=100
+         INTEGER,PARAMETER                     :: NITP_IN=60
+! MID-POINT INTEGRATION METHODS FOR THE BOUNDARY
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XABSC_WEIG_BC
+! Gauss-Legendre METHOD FOR THE INNER SPHERE
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XABSC_WEIG_IN
+         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: STIFF_IJ
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE ELEMENT_IN
+!**************************************************
+!
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE SURFACE_IN
+!**************************************************
+!   POINT
+!       NSFPAR(1) = 1
+!       NSFPAR(2) = NUMSF
+!--------------------------------------------------
+        INTEGER,DIMENSION(7) :: NSFPAR
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE SURFACES
+!   NSFC:     NODE NUMBER OF THE CONTACTOR
+!   XYZC:     XYZ COORDINATES OF THE CONTACTORS
+!   NSFT:     NODE NUMBER OF THE TARGET
+!   XYZT:     XYZ COORDINATES OF THE TARGETS
+!--------------------------------------------------
+        INTEGER :: IND_SURFACE=0
+        INTEGER,DIMENSION(:,:),   ALLOCATABLE :: NSFC
+        REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XYZC
+        INTEGER,DIMENSION(:,:),   ALLOCATABLE :: NSFT
+        REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XYZT      
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE SURFACE_IN
+!**************************************************
+!
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE GENERATE
+!**************************************************
+         INTEGER,DIMENSION(:), ALLOCATABLE :: MAXA
+         INTEGER :: NWK=0
+         REAL(8),DIMENSION(:), ALLOCATABLE  :: KMATRIX
+         REAL(8),DIMENSION(:), ALLOCATABLE  :: MMATRIX
+         REAL(8),DIMENSION(:), ALLOCATABLE  :: CMATRIX
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE GENERATE -- CONTACT
+!**************************************************
+         INTEGER :: NWK_CONT=0
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE SOLVER
+!**************************************************
+!
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE SOLVER_COLSOL
+!--------------------------------------------------
+        INTEGER,DIMENSION(:), ALLOCATABLE :: MHT
+!   MAXIMUM POSSIBLE HALF-BANDWIDTH IN CONTACT MATRIX
+        INTEGER                           :: MHTC        
+        INTEGER,DIMENSION(:), ALLOCATABLE :: MAXA_COLSOL
+        INTEGER :: NWK_COLSOL=0
+        REAL(8),DIMENSION(:), ALLOCATABLE :: K_COLSOL
+!
+        REAL(8),DIMENSION(:), ALLOCATABLE :: DISP        
+!--------------------------------------------------
+!
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE ODE_SOLVER
+!**************************************************
+!       TPARA(1) -- TSTART
+!       TPARA(2) -- TEND
+!       TPARA(3) -- DTIME
+!       INDO_ODE: INDICATOR FOR ODE SOLVER
+!                 1  --  NEWMARK
+!                 2  --  BATHE
+!--------------------------------------------------
+        INTEGER :: IND_ODE=0
+        REAL(8),DIMENSION(3) :: TPARA=0
+        REAL(8) :: TIME=0
+        REAL(8) :: DTIME=0
+        REAL(8),DIMENSION(:), ALLOCATABLE :: KODE
+        REAL(8),DIMENSION(:), ALLOCATABLE :: RODE
+        REAL(8),DIMENSION(:), ALLOCATABLE :: UODE
+        REAL(8),DIMENSION(:), ALLOCATABLE :: VODE
+        REAL(8),DIMENSION(:), ALLOCATABLE :: AODE
+!
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE UPLOAD
+!--------------------------------------------------
+!        REAL(8) :: K=-10000    ! TANGENT VALUE FOR LINEAR LOAD FUNCTION
+!}}}
+        CONTAINS
+!
+      SUBROUTINE ALLOCATEM()
+!{{{
+!--------------------------------------------------
+!       ALLOCATE MEMORY
+!--------------------------------------------------
+        IMPLICIT NONE
+        INTEGER :: I,NN
+        INTEGER :: ALLocateStatus
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE GENERATE
+!**************************************************
+! Build MAXA, Kmatrix, Mmatrix, CMATRIX
+!{{{
+!--- ALLOCATE VARIABLES
+    ALLOCATE (MAXA(NEQ+NCQ+1),STAT = ALLocateStatus)
+    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!--------------------------------------------------
+    DO I=1,NEQ+NCQ+1
+       MAXA(I)=0
+    END DO
+!--------------------------------------------------
+!   SET DEFAULT VALUE
+    MAXA(1)=1
+    MAXA(2)=2
+    IF ((NEQ+NCQ).GT.1) THEN
+       DO I=2,NEQ+NCQ
+          MAXA(I+1)=MAXA(I)+I
+       END DO
+    END IF
+!--- ALLOCATE VARIABLES
+    NWK=MAXA(NEQ+1)-MAXA(1)
+    NWK_CONT=MAXA(NEQ+NCQ+1)-MAXA(1)
+!
+    ALLOCATE (KMATRIX(NWK_CONT),STAT = ALLocateStatus)
+    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+    ALLOCATE (MMATRIX(NWK_CONT),STAT = ALLocateStatus)
+    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+    ALLOCATE (CMATRIX(NWK_CONT),STAT = ALLocateStatus)
+    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!
+    DO I=1,NWK_CONT
+       KMatrix(I)=0
+       MMatrix(I)=0
+       CMatrix(I)=0
+    END DO    
+!}}}
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE ODE_SOLVER
+!**************************************************
+    IF(DYNAMIC.EQ.1) THEN
+      ALLOCATE (KODE(NWK_CONT),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+      ALLOCATE (RODE(NEQ+NCQ),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"         
+      ALLOCATE (UODE(NEQ+NCQ),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
+      ALLOCATE (VODE(NEQ+NCQ),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
+      ALLOCATE (AODE(NEQ+NCQ),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
+!
+    DO I=1,NWK_CONT
+       KODE(I)=0
+    END DO
+    DO I=1,NEQ+NCQ
+       RODE(I) = 0
+       UODE(I) = 0 
+       VODE(I) = 0
+       AODE(I) = 0
+    END DO
+   ENDIF
+!}}}
+      END SUBROUTINE ALLOCATEM
+!
+      SUBROUTINE RELEASE()
+!{{{
+!--------------------------------------------------
+!       RELEASE MEMORY
+!--------------------------------------------------
+        IMPLICIT NONE
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE NODED
+!--------------------------------------------------
+         DEALLOCATE (ID)
+         DEALLOCATE (X)
+         DEALLOCATE (Y)
+         DEALLOCATE (Z)
+         DEALLOCATE (NDOF)
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE LOADD
+!--------------------------------------------------
+         DEALLOCATE (R)
+         DEALLOCATE (NRF)
+         DEALLOCATE (RNAT)
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE BOUNDD
+!--------------------------------------------------
+         DEALLOCATE (RESS)
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE BOUNDARY
+!--------------------------------------------------
+
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE INITLD
+!--------------------------------------------------
+       IF(IND_INITIAL.EQ.1) THEN
+           DEALLOCATE (UI)
+           DEALLOCATE (VI)
+           DEALLOCATE (U)
+           DEALLOCATE (V)
+           DEALLOCATE (ACC)
+       END IF
+!--------------------------------------------------
+!   DEALLOCATE WAREHOUSE FOR SUBROUTINE SURFACE
+!--------------------------------------------------
+       IF(IND_SURFACE.EQ.1) THEN
+          DEALLOCATE (NSFC)
+          DEALLOCATE (XYZC)
+          DEALLOCATE (NSFT)
+          DEALLOCATE (XYZT)
+       END IF
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE MATERIALD
+!--------------------------------------------------
+         DEALLOCATE (MATP) 
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE GENERATE
+!**************************************************
+         DEALLOCATE(MAXA)
+         DEALLOCATE(KMATRIX)
+         DEALLOCATE(MMATRIX)
+         DEALLOCATE(CMATRIX)
+!--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE SOLVER_COLSOL
+!--------------------------------------------------
+         DEALLOCATE(MHT)
+         DEALLOCATE(DISP)
+         DEALLOCATE(MAXA_COLSOL)
+         DEALLOCATE(K_COLSOL)
+!**************************************************
+!   WAREHOUSE FOR SUBROUTINE ODE_SOLVER
+!**************************************************
+       IF(DYNAMIC.EQ.1) THEN
+         DEALLOCATE(KODE)
+         DEALLOCATE(RODE)
+         DEALLOCATE(UODE)
+         DEALLOCATE(VODE)
+         DEALLOCATE(AODE)
+       END IF
+!
+         RETURN         
+!}}}
+      END SUBROUTINE RELEASE
+end module WAREHOUSE
