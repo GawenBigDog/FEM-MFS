@@ -1,0 +1,309 @@
+module ODEM 
+    USE INTERPRETER
+    USE WAREHOUSE 
+    USE OUTPUTM
+    USE SOLVERM    
+    implicit none
+    PUBLIC  :: ODE_IN
+    PUBLIC  :: ODE_SOLVER
+    PRIVATE :: NEWMARK
+    PRIVATE :: UPLOAD 
+    CONTAINS
+!
+    SUBROUTINE ODE_IN(IOUT,OR,ORODE,OACC)
+!{{{
+!-------------------------------------------------- 
+!   READ DATE AND SELECT ODE SOLVER
+!-------------------------------------------------- 
+    IMPLICIT NONE
+    INTEGER,INTENT(IN) :: IOUT
+    REAL(8),DIMENSION(NEQ) :: OR, ORODE, OACC
+    INTEGER :: I,K
+!   ASSISTANT VECTOR
+!   KEYWORDS DEFINITION
+    INTEGER,PARAMETER :: NumKW=5
+    CHARACTER(20),DIMENSION(NumKW) :: KeyODE
+!
+!   SET KEYWORDS
+!
+    KeyODE(1) = "\TSTART:"
+    KeyODE(2) = "\TEND:"
+    KeyODE(3) = "\DTIME:"
+    KeyODE(4) = "\NEWMARK"
+    KeyODE(5) = "\BATHE"
+!
+    WRITE(IOUT,1000)
+!
+    DO I=1,4
+      K=KeyWord(KeyODE,NumKW)
+      SELECT CASE(K)
+      CASE(1)
+         TPARA(1)=GetReal()
+      CASE(2)
+         TPARA(2)=GetReal()
+      CASE(3)
+         TPARA(3)=GetReal()
+      CASE(4)
+         WRITE(IOUT,1050) "NEWMARK"
+         IND_ODE=1
+      CASE(5)
+         WRITE(IOUT,1050) "BATHE"
+         IND_ODE=2   
+      CASE DEFAULT
+           WRITE(*,*) "ERROR, WRONG INPUT IN DYNAMIC_SOLVER PROCEDURE"
+           STOP
+      END SELECT
+    END DO         
+!   CALCULATE ACCELERATION
+    DO I=1,NEQ
+       ORODE(I)=OR(I)-ORODE(I)
+    END DO
+!
+         CALL COLSOL_PRE(MMATRIX(1),ORODE(1),MAXA(1),MAXA_COLSOL(1),DISP(1),K_COLSOL(1))
+         CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,1)
+         CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,2)
+!
+    DO I=1,NEQ
+        OACC(I)=DISP(I)
+    END DO   
+!
+    WRITE(IOUT,2000) TPARA(1),TPARA(2),TPARA(3)
+!--------------------------------------------------      
+ 1000 FORMAT(//,"D Y N A M I C     S O L V E R")
+ 1050 FORMAT(//,"ODE_SOLVER:",A20)
+ 2000 FORMAT(//,&
+             '     SIMULATION START TIME   ','(TSTART) =',F10.3,/,&
+             '     SIMULATION END   TIME   ','(TEND)   =',F10.3,/,&
+             '     TIME INTERVAL           ','(DTIME)  =',ES10.3,/)
+!
+      RETURN
+!}}}
+    END SUBROUTINE ODE_IN
+!
+    SUBROUTINE ODE_SOLVER(STIFF,MASS,RLOAD,NRLOAD,UU,VV,AACC,TT,DT)
+!{{{
+!--------------------------------------------------
+!     SELECT ODE SOLVER
+!--------------------------------------------------
+      IMPLICIT NONE
+      REAL(8),DIMENSION(NWK),INTENT(IN)    :: STIFF,MASS
+      REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: RLOAD
+      REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: UU,VV,AACC
+      INTEGER,DIMENSION(NEQ),INTENT(IN)    :: NRLOAD
+      REAL(8),INTENT(IN) :: TT,DT
+!
+      SELECT CASE(IND_ODE)
+      CASE(1)
+         CALL NEWMARK(STIFF(1),MASS(1),RLOAD(1),NRLOAD(1),UU(1),VV(1),AACC(1),TT,DT)
+      CASE(2)
+         CALL BATHE(STIFF(1),MASS(1),RLOAD(1),NRLOAD(1),UU(1),VV(1),AACC(1),TT,DT)
+      CASE DEFAULT
+         WRITE(*,*) "ERROR ODE_SOLVER DOES NOT EXIST"
+         STOP
+      END SELECT
+!
+      RETURN
+!}}}
+    END SUBROUTINE ODE_SOLVER
+!
+    SUBROUTINE NEWMARK(STIFF,MASS,RLOAD,NRLOAD,UU,VV,AACC,TT,DT)
+!{{{
+!--------------------------------------------------
+!   NEWMARK METHOD
+!--------------------------------------------------
+    IMPLICIT NONE
+    REAL(8),DIMENSION(NWK),INTENT(IN)    :: STIFF,MASS
+    REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: RLOAD
+    REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: UU,VV,AACC
+    INTEGER,DIMENSION(NEQ),INTENT(IN)    :: NRLOAD
+    REAL(8),INTENT(IN) :: TT,DT
+    REAL(8) :: RRODE
+    INTEGER :: I,K,J
+!   ASSISTANT VARIABLES
+    REAL(8),PARAMETER :: BETA=0.5,ALPHA=0.25
+    REAL(8),DIMENSION(8) :: APARA
+!   SET PARAMETERS
+    APARA(1) = 1./ALPHA/DT/DT
+    APARA(2) = BETA/ALPHA/DT
+    APARA(3) = 1./ALPHA/DT
+    APARA(4) = 1./2/ALPHA-1.
+    APARA(5) = BETA/ALPHA-1.
+    APARA(6) = DT/2*(BETA/ALPHA-2.)
+    APARA(7) = DT*(1.-BETA)
+    APARA(8) = BETA*DT
+!   FORM EFFECTIVE STIFFNESS MATRIX
+    DO I=1,NWK
+       KODE(I)=STIFF(I)+APARA(1)*MASS(I)
+    END DO
+!   UPDATE LOAD
+    CALL UPLOAD(RLOAD(1),NRLOAD(1),TT,DT)
+!   FORM EFFECTIVE LOADS
+    RRODE=0
+    DO I=1,NEQ
+       RRODE=RLOAD(I)
+       DO J=1,NEQ
+          IF(J.GE.I) THEN
+             K = MAXA(J)+J-I
+          ELSE
+             K = MAXA(I)+I-J
+          ENDIF 
+          RRODE=RRODE+MASS(K)*(APARA(1)*UU(J)+APARA(3)*VV(J)+APARA(4)*AACC(J))              
+       ENDDO
+       RODE(I)=RRODE
+       RRODE=0
+    END DO
+!
+    CALL COLSOL_PRE(KODE(1),RODE(1),MAXA(1),MAXA_COLSOL(1),DISP(1),K_COLSOL(1))
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,1)
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,2)
+!   UPDATE DISPLACEMENT, VELOCITY & ACCELERATION
+    DO I=1,NEQ
+       UODE(I)=DISP(I)
+       VODE(I)=VV(I)
+       AODE(I)=AACC(I)
+    END DO
+!
+    DO I=1,NEQ
+       AACC(I)= APARA(1)*(UODE(I)-UU(I))-APARA(3)*VODE(I)-APARA(4)*AODE(I)
+       VV(I)  = VODE(I)+APARA(7)*AODE(I)+APARA(8)*AACC(I)
+       UU(I)  = DISP(I)
+    END DO
+    RETURN
+!}}}
+    END SUBROUTINE NEWMARK
+!
+    SUBROUTINE BATHE(STIFF,MASS,RLOAD,NRLOAD,UU,VV,AACC,TT,DT)
+!{{{
+!--------------------------------------------------
+!   BATHE METHOD
+!--------------------------------------------------
+    IMPLICIT NONE
+    REAL(8),DIMENSION(NWK),INTENT(IN)    :: STIFF,MASS
+    REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: RLOAD
+    REAL(8),DIMENSION(NEQ),INTENT(INOUT) :: UU,VV,AACC
+    INTEGER,DIMENSION(NEQ),INTENT(IN)    :: NRLOAD
+    REAL(8),INTENT(IN) :: TT,DT
+    REAL(8) :: RRODE
+    INTEGER :: I,K,J
+!   ASSISTANT VARIABLES
+    REAL(8),DIMENSION(8) :: APARA
+    REAL(8),DIMENSION(NEQ) :: UMID,VMID,AMID
+!   SET PARAMETERS
+    APARA(1) = 16./DT/DT
+    APARA(2) = 4./DT
+    APARA(3) = 9./DT/DT
+    APARA(4) = 3./DT
+    APARA(5) = 2.*APARA(2)
+    APARA(6) = 12./DT/DT
+    APARA(7) = -3./DT/DT
+    APARA(8) = -1./DT
+! **** STEP 1 ****
+!   FORM EFFECTIVE STIFFNESS MATRIX FOR STEP 1
+    DO I=1,NWK
+       KODE(I)=STIFF(I)+APARA(1)*MASS(I)
+    END DO
+!   UPDATE LOAD
+    CALL UPLOAD(RLOAD(1),NRLOAD(1),(TT-0.5*DT),DT)
+!   FORM EFFECTIVE LOADS
+    RRODE=0
+    DO I=1,NEQ
+       DO J=1,NEQ
+          IF(J.GE.I) THEN
+             K = MAXA(J)+J-I
+          ELSE
+             K = MAXA(I)+I-J
+          ENDIF  
+          RRODE=RRODE+MASS(K)*(APARA(1)*UU(J)+APARA(5)*VV(J)+AACC(J))
+       ENDDO
+       RODE(I)=RLOAD(I) + RRODE
+       RRODE=0
+    END DO
+!
+    CALL COLSOL_PRE(KODE(1),RODE(1),MAXA(1),MAXA_COLSOL(1),DISP(1),K_COLSOL(1))
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,1)
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,2)
+!   UPDATE DISPLACEMENT, VELOCITY & ACCELERATION
+    DO I=1,NEQ
+       UMID(I)=DISP(I)
+    END DO
+!
+    DO I=1,NEQ
+       VMID(I)=APARA(2)*(UMID(I)-UU(I))-VV(I)
+       AMID(I)=APARA(2)*(VMID(I)-VV(I))-AACC(I)
+    END DO
+! **** STEP 2 ****
+!   FORM EFFECTIVE STIFFNESS MATRIX FOR STEP 1
+    DO I=1,NWK
+       KODE(I)=STIFF(I)+APARA(3)*MASS(I)
+    END DO
+!   UPDATE LOAD
+    CALL UPLOAD(RLOAD(1),NRLOAD(1),TT,DT)
+!   FORM EFFECTIVE LOADS
+    RRODE=0
+    DO I=1,NEQ
+       RRODE=RLOAD(I)
+       DO J=1,NEQ
+          IF(J.GE.I) THEN
+             K = MAXA(J)+J-I
+          ELSE
+             K = MAXA(I)+I-J
+          ENDIF  
+          RRODE=RRODE+MASS(K)*(28./DT/DT*UMID(J)-19./DT/DT*UU(J)-5/DT*VV(J))
+       ENDDO
+       RODE(I)=RRODE
+    END DO
+    CALL COLSOL_PRE(KODE(1),RODE(1),MAXA(1),MAXA_COLSOL(1),DISP(1),K_COLSOL(1))
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,1)
+    CALL COLSOL(K_COLSOL(1),DISP(1),MAXA_COLSOL(1),NEQ,NWK_COLSOL,NEQ+1,2)
+!   UPDATE DISPLACEMENT, VELOCITY & ACCELERATION
+    DO I=1,NEQ
+       UODE(I)=DISP(I)
+    END DO
+!
+    DO I=1,NEQ       
+       VODE(I)=-APARA(8)*UU(I)-APARA(2)*UMID(I)+APARA(4)*UODE(I)
+       AACC(I)=-APARA(8)*VV(I)-APARA(2)*VMID(I)+APARA(4)*VODE(I)
+       UU(I)=UODE(I)
+       VV(I)=VODE(I)
+    END DO
+!}}}
+    END SUBROUTINE BATHE
+!
+    SUBROUTINE UPLOAD(URLOAD,UNRLOAD,TT,DT)
+!{{{
+!--------------------------------------------------
+!   UPDATE LOAD 
+!       LOAD FUNCTIONS:
+!            1   --- CONSTANT
+!            2   --- LINEAR (REQUIRE K)
+!            3   --- TRIGONOMETRIC
+!--------------------------------------------------
+    IMPLICIT NONE
+!
+    REAL(8),INTENT(IN) :: TT,DT
+    REAL(8),INTENT(INOUT) :: URLOAD(NEQ)
+    INTEGER,INTENT(IN) :: UNRLOAD(NEQ)
+!    
+    INTEGER :: I,J
+!
+   
+    DO I=1,NEQ
+       J=UNRLOAD(I)
+       SELECT CASE(J)
+       CASE(1)
+           CONTINUE
+       CASE(2)
+           URLOAD(I)=-5E8*TT
+       CASE(3)
+           URLOAD(I)=-4*SIN(150*TT)
+       CASE DEFAULT
+            WRITE(*,*) "ERROR, WRONG LOAD FUNCTION NUMBER IN UPLOAD"
+            STOP
+       END SELECT
+    END DO
+    RETURN
+!}}}
+    END SUBROUTINE UPLOAD
+end module ODEM
+
+    
