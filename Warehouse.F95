@@ -22,6 +22,12 @@ module WAREHOUSE
 !
          INTEGER :: NEQ     = 0
          INTEGER :: NCQ     = 0
+!-------------------------------
+!    PARAMETERS
+!-------------------------------
+!    FOR PENALTY METHOD
+!-------------------------------
+         REAL(8),PARAMETER :: BETA=1E9
 !--------------------------------------------------
 !   WAREHOUSE FOR SUBROUTINE NODED (FEM)
 !--------------------------------------------------
@@ -101,12 +107,11 @@ module WAREHOUSE
 !        MFS_ITP :  INTEGRATION POINT
 !        NITP    :  NUMBER OF INTEGRATION POINTS
 !-------------------------------------------------------------
-         INTEGER,PARAMETER                     :: NITP=200
+         INTEGER,PARAMETER                     :: NITP=60
          INTEGER,DIMENSION(:,:),   ALLOCATABLE :: NDMFS
-         REAL(8),DIMENSION(:,:),   ALLOCATABLE :: MFS_ITP_XYZDIV
 ! NUMBER OF INTEGRATION POINTS                            
-         INTEGER,PARAMETER                     :: NITP_BC=100
-         INTEGER,PARAMETER                     :: NITP_IN=60
+         INTEGER :: NITP_BC=10
+         INTEGER :: NITP_IN=60
 ! MID-POINT INTEGRATION METHODS FOR THE BOUNDARY
          REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XABSC_WEIG_BC
 ! Gauss-Legendre METHOD FOR THE INNER SPHERE
@@ -141,14 +146,6 @@ module WAREHOUSE
 !**************************************************
 !
 !**************************************************
-!   WAREHOUSE FOR SUBROUTINE GENERATE
-!**************************************************
-         INTEGER,DIMENSION(:), ALLOCATABLE :: MAXA
-         INTEGER :: NWK=0
-         REAL(8),DIMENSION(:), ALLOCATABLE  :: KMATRIX
-         REAL(8),DIMENSION(:), ALLOCATABLE  :: MMATRIX
-         REAL(8),DIMENSION(:), ALLOCATABLE  :: CMATRIX
-!**************************************************
 !   WAREHOUSE FOR SUBROUTINE GENERATE -- CONTACT
 !**************************************************
          INTEGER :: NWK_CONT=0
@@ -165,6 +162,9 @@ module WAREHOUSE
         INTEGER,DIMENSION(:), ALLOCATABLE :: MAXA_COLSOL
         INTEGER :: NWK_COLSOL=0
         REAL(8),DIMENSION(:), ALLOCATABLE :: K_COLSOL
+        REAL(8),DIMENSION(:), ALLOCATABLE :: KMATRIX
+        REAL(8),DIMENSION(:), ALLOCATABLE :: M_COLSOL
+        REAL(8),DIMENSION(:), ALLOCATABLE :: C_COLSOL
 !
         REAL(8),DIMENSION(:), ALLOCATABLE :: DISP        
 !--------------------------------------------------
@@ -190,6 +190,10 @@ module WAREHOUSE
         REAL(8),DIMENSION(:), ALLOCATABLE :: AODE
 !
 !--------------------------------------------------
+!   WAREHOUSE FOR SUBROUTINE OUTPUT
+!--------------------------------------------------
+        REAL(8) :: ESTRAIN      ! STRAIN ENERGY
+!--------------------------------------------------
 !   WAREHOUSE FOR SUBROUTINE UPLOAD
 !--------------------------------------------------
 !        REAL(8) :: K=-10000    ! TANGENT VALUE FOR LINEAR LOAD FUNCTION
@@ -210,37 +214,37 @@ module WAREHOUSE
 ! Build MAXA, Kmatrix, Mmatrix, CMATRIX
 !{{{
 !--- ALLOCATE VARIABLES
-    ALLOCATE (MAXA(NEQ+NCQ+1),STAT = ALLocateStatus)
-    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-!--------------------------------------------------
-    DO I=1,NEQ+NCQ+1
-       MAXA(I)=0
-    END DO
-!--------------------------------------------------
-!   SET DEFAULT VALUE
-    MAXA(1)=1
-    MAXA(2)=2
-    IF ((NEQ+NCQ).GT.1) THEN
-       DO I=2,NEQ+NCQ
-          MAXA(I+1)=MAXA(I)+I
-       END DO
-    END IF
-!--- ALLOCATE VARIABLES
-    NWK=MAXA(NEQ+1)-MAXA(1)
-    NWK_CONT=MAXA(NEQ+NCQ+1)-MAXA(1)
-!
-    ALLOCATE (KMATRIX(NWK_CONT),STAT = ALLocateStatus)
-    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-    ALLOCATE (MMATRIX(NWK_CONT),STAT = ALLocateStatus)
-    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-    ALLOCATE (CMATRIX(NWK_CONT),STAT = ALLocateStatus)
-    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-!
-    DO I=1,NWK_CONT
-       KMatrix(I)=0
-       MMatrix(I)=0
-       CMatrix(I)=0
-    END DO    
+!    ALLOCATE (MAXA(NEQ+NCQ+1),STAT = ALLocateStatus)
+!    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!!--------------------------------------------------
+!    DO I=1,NEQ+NCQ+1
+!       MAXA(I)=0
+!    END DO
+!!--------------------------------------------------
+!!   SET DEFAULT VALUE
+!    MAXA(1)=1
+!    MAXA(2)=2
+!    IF ((NEQ+NCQ).GT.1) THEN
+!       DO I=2,NEQ+NCQ
+!          MAXA(I+1)=MAXA(I)+I
+!       END DO
+!    END IF
+!!--- ALLOCATE VARIABLES
+!    NWK=MAXA(NEQ+1)-MAXA(1)
+!    NWK_CONT=MAXA(NEQ+NCQ+1)-MAXA(1)
+!!
+!    ALLOCATE (KMATRIX(NWK_CONT),STAT = ALLocateStatus)
+!    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!    ALLOCATE (MMATRIX(NWK_CONT),STAT = ALLocateStatus)
+!    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!    ALLOCATE (CMATRIX(NWK_CONT),STAT = ALLocateStatus)
+!    IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+!!
+!    DO I=1,NWK_CONT
+!       KMatrix(I)=0
+!       MMatrix(I)=0
+!       CMatrix(I)=0
+!    END DO    
 !}}}
 !**************************************************
 !   WAREHOUSE FOR SUBROUTINE ODE_SOLVER
@@ -324,10 +328,10 @@ module WAREHOUSE
 !**************************************************
 !   WAREHOUSE FOR SUBROUTINE GENERATE
 !**************************************************
-         DEALLOCATE(MAXA)
-         DEALLOCATE(KMATRIX)
-         DEALLOCATE(MMATRIX)
-         DEALLOCATE(CMATRIX)
+!         DEALLOCATE(MAXA)
+!         DEALLOCATE(KMATRIX)
+!         DEALLOCATE(MMATRIX)
+!         DEALLOCATE(CMATRIX)
 !--------------------------------------------------
 !   WAREHOUSE FOR SUBROUTINE SOLVER_COLSOL
 !--------------------------------------------------
@@ -335,7 +339,10 @@ module WAREHOUSE
          DEALLOCATE(DISP)
          DEALLOCATE(MAXA_COLSOL)
          DEALLOCATE(K_COLSOL)
-!**************************************************
+         DEALLOCATE(KMATRIX)
+         DEALLOCATE(M_COLSOL)
+         DEALLOCATE(C_COLSOL)
+!*************************************************
 !   WAREHOUSE FOR SUBROUTINE ODE_SOLVER
 !**************************************************
        IF(DYNAMIC.EQ.1) THEN

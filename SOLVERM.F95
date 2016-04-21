@@ -6,7 +6,7 @@ module SOLVERM
     PUBLIC  :: COLSOL_PRE
     PUBLIC  :: COLSOL
     PUBLIC  :: COL_ALLOCATE
-    PRIVATE :: BUILDKM
+!    PRIVATE :: BUILDKM
 !
     CONTAINS
 !**************************************************
@@ -14,7 +14,7 @@ module SOLVERM
 !   SUBROUTINES FOR COLSOL
 !
 !**************************************************
-    SUBROUTINE COLSOL_PRE(KE,RE,CMAXA,CMAXA_COLSOL,CDISP,CK_COLSOL)
+    SUBROUTINE COLSOL_PRE()
 !{{{
 !--------------------------------------------------                                 
 !     SOLVER: COLSOL
@@ -25,19 +25,13 @@ module SOLVERM
 !       M_COLSOL
 !--------------------------------------------------
       IMPLICIT NONE
-      REAL(8),DIMENSION(NWK),INTENT(IN) :: KE
-      REAL(8),DIMENSION(NEQ),INTENT(IN) :: RE 
       INTEGER :: I
 !
-      INTEGER,DIMENSION(NEQ+1),INTENT(IN)           :: CMAXA,CMAXA_COLSOL
-      REAL(8),DIMENSION(NEQ),INTENT(INOUT)          :: CDISP
-      REAL(8),DIMENSION(NWK_COLSOL),INTENT(INOUT)   :: CK_COLSOL
-!
       DO I=1,NEQ
-         CDISP(I)=RE(I)
+         DISP(I)=R(I)
       ENDDO
 !
-      CALL BUILDKM(KE,CMAXA,CMAXA_COLSOL,CK_COLSOL)
+!      CALL BUILDKM(KE,CMAXA,CMAXA_COLSOL,CK_COLSOL)
 !
       RETURN
 !}}}
@@ -118,33 +112,33 @@ module SOLVERM
 !}}}
     END SUBROUTINE COLHT_MFS
 !
-    SUBROUTINE BUILDKM(KE,CMAXA,CMAXA_COLSOL,CK_COLSOL)
-!{{{
-!--------------------------------------------------
-!   CONSTRUCT STIFFNESS AND MASS MATRIX FOR COLSOL
-!--------------------------------------------------
-    IMPLICIT NONE
-    REAL(8),DIMENSION(NWK),INTENT(IN) :: KE
-!
-    INTEGER,DIMENSION(NEQ+1),INTENT(IN)           :: CMAXA,CMAXA_COLSOL
-    REAL(8),DIMENSION(NWK_COLSOL),INTENT(INOUT)   :: CK_COLSOL
-!   ASSISTANT VARIABLES
-    INTEGER :: I,J
-    INTEGER :: Num1,Num2
-!
-    DO I=1,NEQ 
-       Num1=CMAXA_COLSOL(I)
-       Num2=CMAXA(I)
-       DO J=1,MHT(I)+1
-          CK_COLSOL(Num1)=KE(Num2)
-          Num1=Num1+1
-          Num2=Num2+1
-       END DO
-    ENDDO
-!
-    RETURN
-!}}}
-    END SUBROUTINE BUILDKM
+!    SUBROUTINE BUILDKM(KE,CMAXA,CMAXA_COLSOL,CK_COLSOL)
+!!{{{
+!!--------------------------------------------------
+!!   CONSTRUCT STIFFNESS AND MASS MATRIX FOR COLSOL
+!!--------------------------------------------------
+!    IMPLICIT NONE
+!    REAL(8),DIMENSION(NWK),INTENT(IN) :: KE
+!!
+!    INTEGER,DIMENSION(NEQ+1),INTENT(IN)           :: CMAXA,CMAXA_COLSOL
+!    REAL(8),DIMENSION(NWK_COLSOL),INTENT(INOUT)   :: CK_COLSOL
+!!   ASSISTANT VARIABLES
+!    INTEGER :: I,J
+!    INTEGER :: Num1,Num2
+!!
+!    DO I=1,NEQ 
+!       Num1=CMAXA_COLSOL(I)
+!       Num2=CMAXA(I)
+!       DO J=1,MHT(I)+1
+!          CK_COLSOL(Num1)=KE(Num2)
+!          Num1=Num1+1
+!          Num2=Num2+1
+!       END DO
+!    ENDDO
+!!
+!    RETURN
+!!}}}
+!    END SUBROUTINE BUILDKM
 !
     SUBROUTINE COLSOL(A,V,MAXAA,NN,NWKK,NNM,KKK)
 !{{{
@@ -319,9 +313,19 @@ module SOLVERM
 !---- ALLOCATE VARIABLES
       ALLOCATE (K_COLSOL(NWK_COLSOL),STAT = ALLocateStatus)
       IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+      ALLOCATE (KMATRIX(NWK_COLSOL),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+      ALLOCATE (M_COLSOL(NWK_COLSOL),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+      ALLOCATE (C_COLSOL(NWK_COLSOL),STAT = ALLocateStatus)
+      IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
+
 !
       DO I=1,NWK_COLSOL
-         K_COLSOL(I)=0
+         K_COLSOL(I)=0.0D0
+         KMATRIX(I)=0.0D0
+         M_COLSOL(I)=0.0D0
+         C_COLSOL(I)=0.0D0
       END DO
 !
     RETURN

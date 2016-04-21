@@ -1,6 +1,7 @@
 module OUTPUTM
     USE WAREHOUSE
     USE GENERATEM
+    USE OPERATIONM
     IMPLICIT NONE
     PUBLIC  :: OUTPUT
     PUBLIC  :: OUTPUTD
@@ -115,7 +116,7 @@ module OUTPUTM
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K
 !   TRUSS
-    INTEGER :: EleType,NumEle
+    INTEGER :: EleType,NumEle,INDSP
     INTEGER :: BcType,NumBc
     INTEGER :: L1,L2
 !   QUADS
@@ -201,6 +202,7 @@ module OUTPUTM
 !      MFS_BAR
 !--------------------------------------------------
 !{{{
+           INDSP=NPAR(5)
            NEleAss= NPAR(4)
            NumEle = NPAR(3)  
 !--------------------------------------------------
@@ -208,7 +210,7 @@ module OUTPUTM
 !--------------------------------------------------
            ALLOCATE (NDMFS(2,NumEle),STAT = ALLocateStatus)
            IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-           ALLOCATE (ELEPAR(2,NumEle),STAT = ALLocateStatus)
+           ALLOCATE (ELEPAR(1,NumEle),STAT = ALLocateStatus)
            IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
            ALLOCATE (LM(NEleAss,NumEle),STAT = ALLocateStatus)
            IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
@@ -217,16 +219,15 @@ module OUTPUTM
               NDMFS(1,K)=0
               NDMFS(2,K)=0
               ELEPAR(1,K)=0.
-              ELEPAR(2,K)=0.
               DO J=1,NEleAss
                  LM(J,K)=0
               ENDDO
            END DO
 !
 !--------------------------------------------------
-           READ(ADELE) ((NDMFS(K,J),K=1,2),J=1,NumEle),((ELEPAR(J,K),J=1,2),K=1,NumEle),((LM(J,K),J=1,NEleAss),K=1,NumEle)
+           READ(ADELE) ((NDMFS(K,J),K=1,2),J=1,NumEle),(ELEPAR(1,K),K=1,NumEle),((LM(J,K),J=1,NEleAss),K=1,NumEle)
 !}}}
-           CALL OUTDISP_MFS(IDISP,NEleAss,NumEle,1)
+           CALL OUTDISP_MFS(IDISP,NEleAss,NumEle,1,INDSP)
            DEALLOCATE(NDMFS)
            DEALLOCATE(ELEPAR)
            DEALLOCATE(LM)
@@ -235,6 +236,7 @@ module OUTPUTM
 !      MFS_QUADS
 !--------------------------------------------------
 !{{{
+           INDSP=NPAR(6)
            NEleAss= NPAR(5)
            NumEle = NPAR(4)  
 !--------------------------------------------------
@@ -260,7 +262,6 @@ module OUTPUTM
                  LM(J,K)=0
               ENDDO
            END DO
-!
 !--------------------------------------------------
            READ(ADELE) ((NDMFS(K,J),K=1,5),J=1,NumEle),((ELEPAR(J,K),J=1,3),K=1,NumEle),((LM(J,K),J=1,NEleAss),K=1,NumEle)
 !}}}
@@ -301,7 +302,7 @@ module OUTPUTM
               STOP
            END SELECT
 !}}}
-           CALL OUTDISP_MFS(IDISP,NEleAss,NumEle,2)
+           CALL OUTDISP_MFS(IDISP,NEleAss,NumEle,2,INDSP)
        CASE DEFAULT
             WRITE(*,*) "ERROR, WRONG INPUT IN OUTDISP SUBROUTINE!"
             STOP
@@ -321,10 +322,21 @@ module OUTPUTM
 !
       REAL(8) :: D(3)
       INTEGER :: IC,II,I,KK,IL
+      REAL(8) :: H(NEQ)
+!
+!   Calculate strain energy 
+!
+      ESTRAIN=0
+      H=MATRIXB_VECTOR(KMATRIX,MAXA_COLSOL,MHT,DISP,NWK_COLSOL,NEQ)
+      DO I=1,NEQ
+         ESTRAIN=ESTRAIN+DISP(I)*H(I)
+      ENDDO
+      ESTRAIN=ESTRAIN/2.0
 !
 !     Print displacements
 !
       WRITE (IDISP,1000) TIME
+      WRITE (IDISP,1050) ESTRAIN
       WRITE (IDISP,2000)
       IC=4
 !
@@ -353,14 +365,15 @@ module OUTPUTM
 !
       RETURN
 !
- 1000 FORMAT (/,' TIME =',5X,F13.3)
+ 1000 FORMAT (/,' TIME =',5X,ES14.7) 
+ 1050 FORMAT (' TOTAL STRAIN ENERGY =',5X,ES18.6)
  2000 FORMAT (' D I S P L A C E M E N T S',//,'  NODE ',10X,&
               'X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT')
  2010 FORMAT (1X,I3,8X,3ES18.6)
 !}}}
     END SUBROUTINE OUTDISP_FEM
 !
-    SUBROUTINE OUTDISP_MFS(IDISP,NEleAss,NumEle,IND)
+    SUBROUTINE OUTDISP_MFS(IDISP,NEleAss,NumEle,IND,INDSP)
 !{{{
 ! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 ! .                                                                   .
@@ -369,19 +382,32 @@ module OUTPUTM
     IMPLICIT NONE
     INTEGER,INTENT(IN) :: IDISP,IND
     INTEGER :: NEleAss,NumEle
+    INTEGER,OPTIONAL :: INDSP
 !
     REAL(8) :: D(3)
+    REAL(8) :: H(NEQ)
+    REAL(8) :: HI(NPOR_MAX)
     INTEGER :: IC,II,I,KK,IL
-    INTEGER :: J,K
+    INTEGER :: I1
+    INTEGER :: J,JJ,K,KMAX
     INTEGER :: N,M,NUM
     INTEGER :: INDD,NPOR
-    INTEGER :: JJ
     REAL(8) :: S,Radius
     INTEGER :: DIMEN
+!
+!   Calculate strain energy 
+!
+      ESTRAIN=0
+      H=MATRIXB_VECTOR(KMATRIX,MAXA_COLSOL,MHT,DISP,NWK_COLSOL,NEQ)
+      DO I=1,NEQ
+         ESTRAIN=ESTRAIN+DISP(I)*H(I)
+      ENDDO
+      ESTRAIN=ESTRAIN/2.0
 !
 !     Print displacements
 !
       WRITE (IDISP,1000) TIME
+      WRITE (IDISP,1050) ESTRAIN
       WRITE (IDISP,2000)
       IC=4
 !
@@ -390,7 +416,6 @@ module OUTPUTM
       ELSE
          DIMEN=2
       ENDIF
-
 !
       DO II=1,NumEle
          IC=IC + 1
@@ -405,54 +430,63 @@ module OUTPUTM
          END DO
 !
          DO I=1,DIMEN
+            I1=I+1
             N=NDMFS(1,II)
-            KK=ID(I,N)
-            IL=I
-            IF (KK.NE.0)  THEN
+            KK=NDMFS(I1,II)
+            SELECT CASE(KK)
+            CASE(1)
+               D(I)=RESS(I,N)
+            CASE(2)
+               NUM=ID(I,N)
+               D(I)=DISP(NUM)
+            CASE(0)
                DO J=1,NEleAss
                   JJ=LM(J,II)
-                  IF (JJ.NE.0) THEN
-                      M=NDMFS(1,JJ)
-                      IF(IND.EQ.1) THEN
-                         Radius=ELEPAR(2,JJ)
-                      ELSE
+                  IF(JJ.EQ.0) CYCLE
+                     M=NDMFS(1,JJ)
+                     IF(IND.EQ.1) THEN
+                         Radius=ELEPAR(1,JJ)
+                     ELSE
                          Radius=ELEPAR(3,JJ)
-                      ENDIF
-                      S=(X(N)-X(M))*(X(N)-X(M))+(Y(N)-Y(M))*(Y(N)-Y(M))
-                      S=SQRT(S)/Radius
-                      IF(S.LE.1) THEN
-                         IF(NDOF(I,M).NE.0) THEN
-                           DO K=1,NDOF(I,M)                             
-                              INDD=NDMFS(I+1,JJ)
-                              IF((INDD.EQ.1).OR.(INDD.EQ.3)) THEN
-                                 NPOR=K+1
-                              ELSE
-                                 NPOR=K
-                              ENDIF
-                              NUM=ID(I,M)+K-1 
-                              IF(IND.EQ.1) THEN                        
-                                 D(IL)=D(IL)+DISP(NUM)*TRUSS_MFS_HIHJ(NEleAss,JJ,NPOR,X(N),1)
-                              ELSE
-                                 D(IL)=D(IL)+DISP(NUM)*QUADS_MFS_HIHJ(NEleAss,JJ,NPOR,X(N),Y(N),1) 
-                              ENDIF
-                           ENDDO
-                         ENDIF
-                         INDD=NDMFS(I+1,JJ)
-                         IF ((INDD.EQ.1).OR.(INDD.EQ.3)) THEN
-                            IF(IND.EQ.1) THEN                        
-                               D(IL)=D(IL)+RESS(I,M)*TRUSS_MFS_HIHJ(NEleAss,JJ,1,X(N),1)
-                            ELSE
-                               D(IL)=D(IL)+RESS(I,M)*QUADS_MFS_HIHJ(NEleAss,JJ,1,X(N),Y(N),1) 
-                            ENDIF
-                         ENDIF
-                      ENDIF
-                  ENDIF
+                     ENDIF
+                     S=(X(N)-X(M))*(X(N)-X(M))+(Y(N)-Y(M))*(Y(N)-Y(M))
+                     S=SQRT(S)/Radius
+                     IF(S.LE.1) THEN
+                        INDD=NDMFS(I+1,JJ)
+                        IF(INDD.NE.1) THEN 
+                          KMAX=NDOF(I,M)
+                          IF(IND.EQ.1) THEN
+                             HI=TRUSS_MFS_HIHJ(NEleAss,JJ,KMAX,X(N),INDSP)
+                          ELSE
+                             HI=QUADS_MFS_HIHJ(NEleAss,JJ,KMAX,X(N),Y(N),INDSP)  
+                          ENDIF                      
+                          DO K=1,KMAX                             
+                             NUM=ID(I,M)+K-1
+                             NPOR=K
+                             D(I)=D(I)+DISP(NUM)*HI(K) 
+                          ENDDO
+                        ELSE
+                          KMAX=NDOF(I,M)
+                          IF(IND.EQ.1) THEN
+                             HI=TRUSS_MFS_HIHJ(NEleAss,JJ,KMAX+1,X(N),INDSP)
+                          ELSE
+                             HI=QUADS_MFS_HIHJ(NEleAss,JJ,KMAX+1,X(N),Y(N),INDSP) 
+                          ENDIF
+                             D(I)=D(I)+RESS(I,M)*HI(1)
+!
+                          DO K=1,KMAX                           
+                             NUM=ID(I,M)+K-1
+                             NPOR=K+1
+                             D(I)=D(I)+DISP(NUM)*HI(NPOR)
+                          ENDDO
+                        ENDIF
+                     ENDIF
                ENDDO
-            ELSE
-               D(IL)=RESS(I,N)                  
-            ENDIF
-         END DO
-         write(*,*) 
+            CASE DEFAULT 
+               WRITE(*,*) "ERROR, IN OUTDISP_MFS!"
+               STOP
+            END SELECT
+         ENDDO
 !
          WRITE (IDISP,2010) N,D
       END DO    
@@ -460,6 +494,7 @@ module OUTPUTM
     RETURN
 !
  1000 FORMAT (/,' TIME =',5X,F13.3)
+ 1050 FORMAT (' TOTAL STRAIN ENERGY =',5X,ES18.6)
  2000 FORMAT (' D I S P L A C E M E N T S',//,'  NODE ',10X,&
               'X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT')
  2010 FORMAT (1X,I3,8X,3ES18.6)
