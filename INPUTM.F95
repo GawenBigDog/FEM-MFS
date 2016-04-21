@@ -283,9 +283,9 @@ module INPUTM
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! RESET NODE DATA
        DO I=1,NUMNP
-          X(I)=0
-          Y(I)=0
-          Z(I)=0
+          X(I)=0.0
+          Y(I)=0.0
+          Z(I)=0.0
           DO J=1,3
              ID(J,I)=0
              NDOF(J,I)=0
@@ -412,7 +412,7 @@ module INPUTM
        ' NUMBER     CONDITION  CODES',21X,'COORDINATES',32X,&
        'GENERATING',/,95X,'CODE',/,&
        15X,'X    Y    Z',15X,'X',12X,'Y',12X,'Z',11X,'NDOF(3,N)',8X,'KN')
- 2030  FORMAT (I5,6X,3I5,6X,3F13.3,3X,3I5,6X,I4)
+ 2030  FORMAT (I5,6X,3I5,6X,3ES14.7,3X,3I5,6X,I4)
  2040  FORMAT(//,' EQUATION NUMBERS',//,'   NODE',9X,&
        'DEGREES OF FREEDOM',/,'  NUMBER',//,&
        '     N',13X,'X      Y      Z',/,(1X,I5,9X,I5,2X,I5,2X,I5))
@@ -471,7 +471,7 @@ module INPUTM
 !
           NumNEQ=ID(IDIRNN,N)
           RNAT(IDIRNN,N)=FLOADD
-           IF (NumNEQ.NE.0) THEN
+          IF (NumNEQ.NE.0) THEN
              R(NumNEQ)=FLOADD
              NRF(NumNEQ)=NFUNCC
              IF(NDOF(IDIRNN,N).GE.2) THEN
@@ -502,7 +502,7 @@ module INPUTM
  2030  FORMAT(I5,9X,I5,3X,F13.3,5X,I6)
  2040  FORMAT(/,'EQUATION        LOAD           FUNCTION',/&
               ' NUMBER       MAGNITUDE          CODES ')
- 2050  FORMAT(I5,5X,F13.3,7X,I6)
+ 2050  FORMAT(I5,5X,ES18.6,7X,I6)
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !}}}
     END SUBROUTINE LOADD
@@ -880,31 +880,35 @@ module INPUTM
 !
     INTEGER :: AllocateStatus
 !
-    CHARACTER(20),DIMENSION(2) :: KWLINE
+    CHARACTER(20),DIMENSION(3) :: KWLINE
 ! - - - - - - - - - - - - - - -  
 ! -     VARIABLE DEFINITION   -
 ! - - - - - - - - - - - - - - -
     KWLINE(1) = 'NUMBC:'
-    KWLINE(2) = '\END'
+    KWLINE(2) = 'NITP:'
+    KWLINE(3) = '\END'
 !   SET DEFAULT VALUE
     NPAR(2)=1
 !
-    I = KeyWord(KWLINE,2)
+    I = KeyWord(KWLINE,3)
     DO WHILE(I<=2)
        SELECT CASE(I)
          CASE(1)
            J = GetInt()
            NPAR(2)=J
          CASE(2)
+           J = GetInt()
+           NITP_BC=J
+         CASE(3)
            EXIT
          CASE DEFAULT
            WRITE(*,*) "ERROR, ERROR INPUT IN LINED"
            STOP
        END SELECT
-       I = KeyWord(KWLINE,2)
+       I = KeyWord(KWLINE,3)
     END DO
 !
-    WRITE(IOUT,1000) NPAR(2)
+    WRITE(IOUT,1000) NPAR(2),NITP_BC
 !   
     IF(NPAR(2).EQ.0) THEN
             WRITE(*,*) "ERROR, NUMBER OF LINE BOUNDARY .EQ.0"
@@ -1007,7 +1011,8 @@ module INPUTM
 !--------------------------------------------------
  1000 Format(/,&
               '    THE BOUNDARY TYPE: LINE ',/,&
-              '    THE NUMBER OF LINE BOUNDARY  =',I5,/)
+              '    THE NUMBER OF LINE BOUNDARY      =',I5,/,&
+              '    THE NUMBER OF INTEGRATION POINTS =',I5)
  2000 FORMAT(/,&
               ' BOUNDARY   ELEMENT  ELEMENT  IND(2,N)           FLOAD(2,N)           FUNC(2,N)',/,&
               ' NUMBER-N      I        J       ',/)
@@ -1097,7 +1102,7 @@ module INPUTM
           NPAR(1)=3
           CALL TRUSS_MFSD(IIN,IOUT)         
           WRITE(ITEM1) (NPAR(L),L=1,7)
-          WRITE(ITEM1) ((NDMFS(M,L),M=1,2),L=1,NPAR(3)),((ELEPAR(M,L),M=1,2),L=1,NPAR(3)),((LM(M,L),M=1,NPAR(4)),L=1,NPAR(3))
+          WRITE(ITEM1) ((NDMFS(M,L),M=1,2),L=1,NPAR(3)),(ELEPAR(1,L),L=1,NPAR(3)),((LM(M,L),M=1,NPAR(4)),L=1,NPAR(3))
           ! Deallocate variables
           DEALLOCATE(NDMFS)
           DEALLOCATE(ELEPAR)
@@ -1465,28 +1470,30 @@ module INPUTM
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K
     INTEGER :: NumEle
-    INTEGER :: N,M,II,KN,IND_MFS
-    INTEGER :: KNOLD,NOLD,NUM,NUMN,IND_MFS_OLD
+    INTEGER :: N,M,II,KN,IND
+    INTEGER :: KNOLD,NOLD,NUM,NUMN,IND_OLD
     INTEGER :: IOLD,NII
-    REAL(8) :: ANGLE,RAD,AOLD,ROLD
+    REAL(8) :: RAD,ROLD
     INTEGER :: NCOUNT
     INTEGER :: NEleAss
     INTEGER :: AllocateStatus
 !
-    CHARACTER(20),DIMENSION(4) :: KWTRUSS_MFS
+    CHARACTER(20),DIMENSION(5) :: KWTRUSS_MFS
 ! - - - - - - - - - - - - - - -  
 ! -     VARIABLE DEFINITION   -
 ! - - - - - - - - - - - - - - -
     KWTRUSS_MFS(1) = 'MTYPE:'
     KWTRUSS_MFS(2) = 'NUMELE:'
     KWTRUSS_MFS(3) = 'ELEASS:'
-    KWTRUSS_MFS(4) = '\END'
+    KWTRUSS_MFS(4) = 'INDSP:'
+    KWTRUSS_MFS(5) = '\END'
 !   SET DEFAULT VALUE
     NPAR(2)=1
     NPAR(3)=0
+    NPAR(5)=1
 !   
-    I = KeyWord(KWTRUSS_MFS,4)
-    DO WHILE(I<=4)
+    I = KeyWord(KWTRUSS_MFS,5)
+    DO WHILE(I<=5)
        SELECT CASE(I)
          CASE(1)
            J = GetInt()
@@ -1502,15 +1509,18 @@ module INPUTM
            J = GetInt()
            NPAR(4)=J
          CASE(4)
+           J = GetInt()
+           NPAR(5)=J
+         CASE(5)
            EXIT
          CASE DEFAULT
            WRITE(*,*) "ERROR, ERROR INPUT IN TRUSS_MFSD"
            STOP
        END SELECT
-       I = KeyWord(KWTRUSS_MFS,4)
+       I = KeyWord(KWTRUSS_MFS,5)
     END DO
 !
-    WRITE(IOUT,1000) NPAR(2),NPAR(3),NPAR(4)
+    WRITE(IOUT,1000) NPAR(2),NPAR(3),NPAR(4),NPAR(5)
 !
     IF(NPAR(3).EQ.0) THEN
             WRITE(*,*) "ERROR, NUMBER OF TRUSS ELEMENT .EQ.0"
@@ -1522,7 +1532,7 @@ module INPUTM
 !
 !-------- Allocate memory
 !
-        ALLOCATE (ELEPAR(2,NumEle),STAT = ALLocateStatus)
+        ALLOCATE (ELEPAR(1,NumEle),STAT = ALLocateStatus)
         IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"        
         ALLOCATE (NDMFS(2,NumEle),STAT = ALLocateStatus)
         IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***" 
@@ -1531,9 +1541,10 @@ module INPUTM
 ! ----------------------------------------------------------------
         DO I=1,NumEle
            ELEPAR(1,I)=0.
-           ELEPAR(2,I)=0.
-           NDMFS(1,I)=0
-           NDMFS(2,I)=0
+           DO J=1,2
+              NDMFS(J,I)=0
+           ENDDO
+!
            DO J=1,NEleAss
               LM(J,I)=0
            ENDDO
@@ -1541,7 +1552,7 @@ module INPUTM
 ! ----------------------------------------------------------------
         WRITE(IOUT,2000)
         NCOUNT=0
-        READ(IIN,*) N, II,IND_MFS, ANGLE, RAD,KN
+        READ(IIN,*) N, II, IND,RAD,KN
         DO WHILE(N.NE.0)
            IF(II.GT.NumEle) THEN
               WRITE(*,*) "ERROR N .GT. NumEle"
@@ -1549,10 +1560,9 @@ module INPUTM
            END IF
            NCOUNT=NCOUNT+1
 !          
-           ELEPAR(1,N)=ANGLE
-           ELEPAR(2,N)=RAD
+           ELEPAR(1,N)=RAD
            NDMFS(1,N)=II
-           NDMFS(2,N)=IND_MFS
+           NDMFS(2,N)=IND
 !
            IF (KNOLD.NE.0) THEN
               NUM=(N-NOLD)/KNOLD
@@ -1565,33 +1575,31 @@ module INPUTM
 !
                     NII=NII+KNOLD
                     NDMFS(1,K)=NII
-                    NDMFS(2,K)=IND_MFS_OLD
+                    NDMFS(2,K)=IND_OLD                  
 !
-                    ELEPAR(1,K)=AOLD
-                    ELEPAR(2,K)=ROLD
+                    ELEPAR(1,K)=ROLD
 !
-                   WRITE(IOUT,2050) K,NII,IND_MFS_OLD,AOLD,ROLD                
+                   WRITE(IOUT,2050) K,NII,IND_OLD,ROLD                
                    NCOUNT=NCOUNT+1
                  END DO
               END IF
             ENDIF
-            WRITE(IOUT,2050) N,II,IND_MFS,ANGLE,RAD
+            WRITE(IOUT,2050) N,II,IND,RAD
 !        
             NOLD=N
             KNOLD=KN
             IOLD=II
-            IND_MFS_OLD=IND_MFS
-            AOLD=ANGLE
+            IND_OLD=IND
             ROLD=RAD
 !
-           READ(IIN,*) N, II,IND_MFS, ANGLE, RAD,KN
+           READ(IIN,*) N, II,IND,RAD,KN
         END DO
 !
         IF(NCOUNT.NE.NumEle) THEN
               WRITE(*,*) "ERROR, ELEMENT NUMBER .LT.NumEle"
               STOP
         END IF
-        CALL MFS_ASSD(2,2,NumEle,NEleAss,NDMFS,ELEPAR,LM)
+        CALL MFS_ASSD(2,1,NumEle,NEleAss,NDMFS,ELEPAR,LM)
 !       CONSTRUCT MHT
         DO N=1,NumEle
            DO I=1,NEleAss
@@ -1608,11 +1616,12 @@ module INPUTM
               '    THE ELELMENT TYPE: TRUSS',/,&
               '    THE MATERIAL SET NUMBER                   =',I5,/,&
               '    THE NUMBER OF TRUSS ELEMENTS              =',I5,/,&
-              '    THE MAXIMUM ELEMENT ASSOCIATION NUMBER    =',I5)
+              '    THE MAXIMUM ELEMENT ASSOCIATION NUMBER    =',I5,/,&
+              '    IND NUMBER OF SHEPARD FUNCTION            =',I5) 
  2000 FORMAT(/,&
-              ' ELEMENT     NODE      NODE        ANGLE         RAD   ',/,&
-              ' NUMBER-N   NUMBER   INDICATOR           ',/)
- 2050 FORMAT(I5,6X,I5,6X,I5,4X,ES13.3,ES13.3)
+              ' ELEMENT     NODE        IND       RAD ',/,&
+              ' NUMBER-N   NUMBER               ',/)
+ 2050 FORMAT(I5,6X,I5,6X,I5,2X,ES13.3)
 !}}}
     END SUBROUTINE TRUSS_MFSD
 !
@@ -1646,7 +1655,7 @@ module INPUTM
     INTEGER :: ALLocateStatus 
     INTEGER :: M
 !
-    CHARACTER(20),DIMENSION(5) :: KWQUADS_MFS
+    CHARACTER(20),DIMENSION(7) :: KWQUADS_MFS
 ! - - - - - - - - - - - - - - -  
 ! -     VARIABLE DEFINITION   -
 ! - - - - - - - - - - - - - - -
@@ -1654,15 +1663,18 @@ module INPUTM
     KWQUADS_MFS(2) = 'MTYPE:'
     KWQUADS_MFS(3) = 'NUMELE:'
     KWQUADS_MFS(4) = 'ELEASS:'
-    KWQUADS_MFS(5) = '\END'
+    KWQUADS_MFS(5) = 'NITP:'
+    KWQUADS_MFS(6) = 'INDSP:'
+    KWQUADS_MFS(7) = '\END'
 !   SET DEFAULT VALUE
     NPAR(2)=1
     NPAR(3)=1
     NPAR(4)=1
     NPAR(5)=NUMNP
+    NPAR(6)=1
 !
-    I = KeyWord(KWQUADS_MFS,5)
-    DO WHILE(I<=5)
+    I = KeyWord(KWQUADS_MFS,7)
+    DO WHILE(I<=6)
        SELECT CASE(I)
          CASE(1)
            J = GetInt()
@@ -1685,15 +1697,21 @@ module INPUTM
            J = GetInt()
            NPAR(5)=J
          CASE(5)
+           J = GetInt()
+           NITP_IN=J
+         CASE(6)
+           J = GetInt()
+           NPAR(6) =J
+         CASE(7)
            EXIT
          CASE DEFAULT
            WRITE(*,*) "ERROR, ERROR INPUT IN QUADS_MFSD"
            STOP
        END SELECT
-       I = KeyWord(KWQUADS_MFS,5)
+       I = KeyWord(KWQUADS_MFS,7)
     END DO
 !
-    WRITE(IOUT,1000) NPAR(2),NPAR(3),NPAR(4),NPAR(5)
+    WRITE(IOUT,1000) NPAR(2),NPAR(3),NPAR(4),NITP_IN,NPAR(5),NPAR(6)
 !
     IF(NPAR(4).EQ.0) THEN
             WRITE(*,*) "ERROR, NUMBER OF QUADS ELEMENT .EQ.0"
@@ -1785,7 +1803,7 @@ module INPUTM
               STOP
         END IF
 !
-        CALL MFS_ASSD(5,3,NumEle,NEleAss,NDMFS,ELEPAR,LM)
+        CALL MFS_ASSD(5,3,NumEle,NEleAss,NDMFS(1,1),ELEPAR(1,1),LM(1,1))
 !       CONSTRUCT MHT
         DO N=1,NumEle
            DO I=1,NEleAss
@@ -1804,7 +1822,9 @@ module INPUTM
               '               2: PLANE STRESS            ',/,&                  
               '    THE MATERIAL SET NUMBER           =',I5,/,&
               '    THE NUMBER OF QUADS ELEMENTS      =',I5,/,&
-              '    THE MAXIMUM ELEMENT ASSOCIATION NUMBER    =',I5)
+              '    THE NUMBER OF INTEGRATION POINTS  =',I5,/,&
+              '    THE MAXIMUM ELEMENT ASSOCIATION NUMBER    =',I5,/,&
+              '    IND NUMBER OF SHEPARD FUNCTION    =',I5)
  2000 FORMAT(/,&
               ' ELEMENT     NODE      IND(2,N)               RAD(3,N)  ',/,&
               ' NUMBER-N   NUMBER                 ',/)
@@ -1831,32 +1851,38 @@ module INPUTM
 !
 !   ASSISTANT VARIABLES
 !
-    INTEGER :: I,J,K
+    INTEGER :: I,J
+    INTEGER,DIMENSION(NumEle) :: K
     INTEGER :: N,M
     REAL(8) :: RAD1,RAD2
-    REAL(8) :: DIST    
+    REAL(8) :: DIST  
+    LOGICAL :: EXPRN  
 !
+    DO I=1,NumEle
+       K(I)=1
+    ENDDO
     RAD1=0
     RAD2=0
     DO I=1,NumEle
        N=MFS_NODE(1,I)
-       RAD1=MFS_PAR(NEle2,I)
-       K=1
-       DIST=0
-       DO J=1,NumEle
-          IF(J.EQ.I) THEN
-             DIST=0 
-          ELSE                
-             M=MFS_NODE(1,J)
-             RAD2=MFS_PAR(NEle2,J)
-             DIST=(X(N)-X(M))*(X(N)-X(M))+(Y(N)-Y(M))*(Y(N)-Y(M))+(Z(N)-Z(M))*(Z(N)-Z(M))
-             DIST=SQRT(DIST)
-          ENDIF
+       RAD1=MFS_PAR(NEle2,I) 
+       DO J=I,NumEle              
+          M=MFS_NODE(1,J)
+          RAD2=MFS_PAR(NEle2,J)
+          DIST=(RAD1+RAD2)*(RAD1+RAD2)
 !
-          IF(DIST.LT.(RAD1+RAD2)) THEN
-             MFS_ASS(K,I)=J
-             K=K+1
+          DIST=(X(N)-X(M))*(X(N)-X(M))+(Y(N)-Y(M))*(Y(N)-Y(M))+(Z(N)-Z(M))*(Z(N)-Z(M))-DIST
+!
+          EXPRN=DIST>=(-1E-8) 
+          IF(EXPRN) CYCLE 
+!          
+          MFS_ASS(K(I),I)=J
+          K(I)=K(I)+1
+          IF(I.NE.J) THEN
+             MFS_ASS(K(J),J)=I
+             K(J)=K(J)+1
           ENDIF
+          IF(K(I).GT.NEleAss) EXIT
        ENDDO
     ENDDO
 !

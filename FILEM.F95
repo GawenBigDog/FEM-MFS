@@ -63,7 +63,8 @@
 ! - - - - - - - - - - - - - - -
         LOGICAL :: EX
 !--IF DISCOVERY.IN DOES NOT EXIST: STOP
-        INQUIRE(FILE = "DISCOVERY.IN",EXIST=EX)
+!
+        INQUIRE(FILE ="DISCOVERY.IN",EXIST=EX)
         IF (.NOT.EX) THEN
              PRINT *, "*** STOP *** FILE DISCOVERY.IN DOES NOT EXIST !"
              STOP
