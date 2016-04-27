@@ -570,6 +570,7 @@ module GENERATEM
 !
 !  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 !{{{
+!
     SUBROUTINE TRUSS_MFS_G(ADELE)
 !{{{
 !--------------------------------------------------
@@ -599,15 +600,14 @@ module GENERATEM
     NEleAss= NPAR(4)
     NumEle = NPAR(3)
     Mtype  = NPAR(2)
-    INDSP  = NPAR(5)
 !   SET MATERIAL PARAMETERS
     E    = MATP(1,Mtype)
     DEN  = MATP(3,Mtype)
     AREA = MATP(4,Mtype)
 !   ALLOCATE VARIABLES
-    ALLOCATE (NDMFS(2,NumEle),STAT = ALLocateStatus)
+    ALLOCATE (NDMFS(3,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-    ALLOCATE (ELEPAR(1,NumEle),STAT = ALLocateStatus)
+    ALLOCATE (ELEPAR(2,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
     ALLOCATE (LM(NEleAss,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
@@ -615,15 +615,17 @@ module GENERATEM
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***" 
 !--------------------------------------------------
         DO I=1,NumEle
-           NDMFS(1,I)=0
-           NDMFS(2,I)=0
+           DO J=1,3
+              NDMFS(J,I)=0
+           ENDDO
            ELEPAR(1,I)=0.
+           ELEPAR(2,I)=0.
            DO J=1,NEleAss
               LM(J,I)=0
            ENDDO
         END DO
 !--------------------------------------------------
-    READ(ADELE) ((NDMFS(I,J),I=1,2),J=1,NumEle),(ELEPAR(1,I),I=1,NumEle),((LM(J,I),J=1,NEleAss),I=1,NumEle)
+    READ(ADELE) ((NDMFS(I,J),I=1,3),J=1,NumEle),((ELEPAR(J,I),J=1,2),I=1,NumEle),((LM(J,I),J=1,NEleAss),I=1,NumEle)
 !   GENERATE
     CALL GAULEG(NITP,XABSC_WEIG_IN(1,1),XABSC_WEIG_IN(1,2))
 !
@@ -637,6 +639,7 @@ module GENERATEM
 !
 !   Neumann boundary
 !
+       INDSP=NDMFS(3,I)
        IF(NDMFS(2,I).EQ.2) THEN
           N=NDMFS(1,I)
           KI=ID(1,N)
@@ -645,7 +648,7 @@ module GENERATEM
           DO JJ=1,NDOF(1,N)
              NUM=KI+JJ-1
              NPOR=JJ
-             R(NUM)=R(NUM)*HI(NPOR)*AREA
+             R(NUM)=RNAT(1,N)*HI(NPOR)*AREA
           ENDDO
        ENDIF
 !       
@@ -660,7 +663,7 @@ module GENERATEM
              DO JJ=1,NDOF(1,N)
                 NPOR=JJ+1
                 NUM=KI+JJ-1
-                R(NUM) = R(NUM)*DHI(NPOR)*AREA*E
+                R(NUM) = RESS(1,N)*DHI(NPOR)*AREA*E
              ENDDO
           ENDIF
        ENDIF
@@ -674,7 +677,7 @@ module GENERATEM
        DO J=1,NEleAss
           K=LM(J,I)
           IF (K.GE.I) THEN        
-             CALL TRUSS_MFS_STIFF(I,K,E,DEN,AREA,NEleAss,INDSP)
+             CALL TRUSS_MFS_STIFF(I,K,E,DEN,AREA,NEleAss)
           ENDIF
        ENDDO 
 !
@@ -690,7 +693,7 @@ module GENERATEM
 !}}}
     END SUBROUTINE TRUSS_MFS_G
 !
-    SUBROUTINE TRUSS_MFS_STIFF(II,JJ,E,DEN,AREA,NEleAss,INDSP)
+    SUBROUTINE TRUSS_MFS_STIFF(II,JJ,E,DEN,AREA,NEleAss)
 !{{{
 ! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 ! .   CALCULATE STIFFNESS MATRIX OF TRUSS_MFS                         .
@@ -705,7 +708,6 @@ module GENERATEM
     INTEGER,INTENT(IN) :: II,JJ
     REAL(8)            :: E,DEN,AREA
     INTEGER            :: NEleAss
-    INTEGER            :: INDSP
 !   ASSISTANT VARIABLES
     INTEGER            :: N,M
     INTEGER            :: KI,KJ,KK2
@@ -714,23 +716,26 @@ module GENERATEM
     INTEGER            :: INDK,INDL
     REAL(8)            :: XM,XL,XTMP,WEIGHT
     INTEGER            :: IND1,IND2
-    LOGICAL            :: IND1_X,IND2_X,EXPN1,EXPN2,EXPN3
+    LOGICAL            :: IND1_X,IND2_X,EXPN1,EXPN2
     INTEGER            :: NPOR1,NPOR2
     REAL(8)            :: HIHJ(NPOR_MAX*NPOR_MAX)
     REAL(8)            :: HI(NPOR_MAX),HJ(NPOR_MAX),DHI(NPOR_MAX),DHJ(NPOR_MAX)
-    REAL(8)            :: S2,CONST2,CONST1
-    REAL(8)            :: STIFF(NPOR_MAX)
+    REAL(8)            :: S2,CONST2,CONST1,CONST3,DIRNI,DIRNJ
+    REAL(8)            :: STIFF(NPOR_MAX*NPOR_MAX)
     INTEGER            :: NUM
+    INTEGER            :: INDSPI,INDSPJ
 !
     N       =  NDMFS(1,II)
     M       =  NDMFS(1,JJ)
+    INDSPI  =  NDMFS(3,II)
+    INDSPJ  =  NDMFS(3,JJ)
 !
     IND1 = NDMFS(2,II)
     IND2 = NDMFS(2,JJ)
     IND1_X = (IND1.EQ.1)
     IND2_X = (IND2.EQ.1)
 !
-    EXPN1=((IND1.NE.0).AND.(IND2.NE.0))
+    EXPN1=(IND1.NE.0).AND.(IND2.NE.0)
 !
     IF (IND1_X) THEN
         NPOR1=NDOF(1,N)+1
@@ -744,26 +749,28 @@ module GENERATEM
         NPOR2=NDOF(1,M)
     ENDIF
 !
-    XL = ELEPAR(1,II)
+    XL = ELEPAR(2,II)
     XM = X(N)
+    DIRNI=ELEPAR(1,II)
 !
     L=NPOR1*NPOR2 
     DO I=1,L
        HIHJ(I)=0.0D0
     ENDDO 
 !
-    CONST2=1.0/ELEPAR(1,JJ)
+    CONST2=1.0/ELEPAR(2,JJ)
     DO I=1,NITP
        XTMP=XM+XL*XABSC_WEIG_IN(I,1)
        S2=ABS(XTMP-X(M))*CONST2
        IF(S2.GT.1) CYCLE
        WEIGHT=XABSC_WEIG_IN(I,2)
        IF(EXPN1) THEN
-          EXPN2=IND1_X.AND.((XTMP-XM).LT.0.0)
-          EXPN3=(IND1.EQ.2).AND.((XTMP-XM).GT.0.0)
-          IF(EXPN2.OR.EXPN3) CYCLE
-          DHI=TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSP)
-          DHJ=TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSP)
+          CONST3=(XTMP-XM)*DIRNI
+          EXPN2=CONST3.LT.0.0
+          IF(EXPN2) CYCLE
+!
+          DHI=TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSPI)
+          DHJ=TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSPJ)
 !
           DO J=1,NPOR1
             DO K=1,NPOR2
@@ -772,8 +779,9 @@ module GENERATEM
             ENDDO
           ENDDO             
        ELSE
-          DHI=TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSP)
-          DHJ=TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSP)
+!
+          DHI=TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSPI)
+          DHJ=TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSPJ)
 !
           DO J=1,NPOR1
             DO K=1,NPOR2
@@ -793,10 +801,10 @@ module GENERATEM
     IF(IND1.EQ.1) THEN
        IF(IND2.EQ.1) THEN
           XTMP = X(N)
-          HI = TRUSS_MFS_HIHJ(NEleAss,II,NPOR1,XTMP,INDSP)
-          HJ = TRUSS_MFS_HIHJ(NEleAss,JJ,NPOR2,XTMP,INDSP)
-          DHI = TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSP)
-          DHJ = TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSP)
+          HI = TRUSS_MFS_HIHJ(NEleAss,II,NPOR1,XTMP,INDSPI)
+          HJ = TRUSS_MFS_HIHJ(NEleAss,JJ,NPOR2,XTMP,INDSPJ)
+          DHI = TRUSS_MFS_HIHJ_V2(NEleAss,II,NPOR1,XTMP,INDSPI)
+          DHJ = TRUSS_MFS_HIHJ_V2(NEleAss,JJ,NPOR2,XTMP,INDSPJ)
           DO I=1,NPOR1
              DO J=1,NPOR2
                 K=(I-1)*NPOR2+J
@@ -884,42 +892,49 @@ module GENERATEM
     REAL(8) :: HI(NPOR_MAX),STIFF(NPOR_MAX)
     REAL(8) :: XM,XL,XTMP,WEIGHT
     INTEGER :: IND1
+    INTEGER :: INC
     LOGICAL :: EXPN2,EXPN3
-    REAL(8) :: CONST1
+    REAL(8) :: CONST1,CONST2,DIRN
 !
        N   = NDMFS(1,II)
        IND1= NDMFS(2,II)
+       IF(IND1.EQ.1) THEN
+          NPORMAX=NDOF(1,N)+1
+          INC=1
+       ELSE
+          NPORMAX=NDOF(1,N)
+          INC=0
+       ENDIF
 ! 
        DO I=1,NPOR_MAX
           STIFF(I)=0.0D0
        ENDDO
 !
        XM = X(N)
-       XL = ELEPAR(1,II)
+       XL = ELEPAR(2,II)
        NUM=ID(1,N)
+       DIRN=ELEPAR(1,II)
        IF(NUM.NE.0) THEN
           DO J=1,NITP
              XTMP = XM+XL*XABSC_WEIG_IN(J,1)
              WEIGHT = XABSC_WEIG_IN(J,2)
 !
-             EXPN2=(IND1.EQ.1).AND.((XTMP-XM).LT.0.0)
-             EXPN3=(IND1.EQ.2).AND.((XTMP-XM).GT.0.0)
-             IF(EXPN2.OR.EXPN3) CYCLE
-!
-             IF(IND1.EQ.1) THEN
-                NPORMAX=NDOF(1,N)+1
-                HI=TRUSS_MFS_HIHJ(NEleAss,II,NPORMAX,XTMP,INDSP)
-                DO K=1,NDOF(1,N)
-                   NPOR=K+1
-                   STIFF(K)=STIFF(K)+HI(NPOR)*XTMP*WEIGHT
-                ENDDO
+             EXPN2=(IND1.NE.0)
+             IF(EXPN2) THEN
+                CONST2=(XTMP-XM)*DIRN
+                EXPN3=CONST2.LT.0.0
+                IF(EXPN3) CYCLE
+                   HI=TRUSS_MFS_HIHJ(NEleAss,II,NPORMAX,XTMP,INDSP)
+                   DO K=1,NDOF(1,N)
+                      NPOR=K+INC
+                      STIFF(K)=STIFF(K)+HI(NPOR)*WEIGHT
+                   ENDDO
              ELSE
-                NPORMAX=NDOF(1,N)
-                HI=TRUSS_MFS_HIHJ(NEleAss,II,NPORMAX,XTMP,INDSP)
-                DO K=1,NDOF(1,N)
-                   NPOR=K
-                   STIFF(K)=STIFF(K)+HI(NPOR)*XTMP*WEIGHT
-                ENDDO
+                   HI=TRUSS_MFS_HIHJ(NEleAss,II,NPORMAX,XTMP,INDSP)
+                   DO K=1,NDOF(1,N)
+                      NPOR=K+INC
+                      STIFF(K)=STIFF(K)+HI(NPOR)*WEIGHT
+                   ENDDO
              ENDIF
 !               
           ENDDO
@@ -949,14 +964,14 @@ module GENERATEM
     INTEGER,INTENT(IN) :: ADELE,ADBC
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K,L
-    INTEGER :: NEleAss,NumEle,Mtype,ITYPE,INDSP
+    INTEGER :: NEleAss,NumEle,Mtype,ITYPE
     REAL(8) :: E,PR,DEN,THIC
     INTEGER :: BcType
 !   ASSISTANT VARIABLES
     INTEGER :: KI
     INTEGER :: ALLocateStatus
+    REAL(8) :: TT1,TT2
 !   READ 
-    INDSP  = NPAR(6)
     NEleAss= NPAR(5)
     NumEle = NPAR(4)
     Mtype  = NPAR(3)
@@ -967,9 +982,9 @@ module GENERATEM
     DEN  = MATP(3,Mtype)
     THIC = MATP(4,Mtype)
 !   ALLOCATE VARIABLES
-    ALLOCATE (NDMFS(5,NumEle),STAT = ALLocateStatus)
+    ALLOCATE (NDMFS(6,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
-    ALLOCATE (ELEPAR(3,NumEle),STAT = ALLocateStatus)
+    ALLOCATE (ELEPAR(4,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"
     ALLOCATE (LM(NEleAss,NumEle),STAT = ALLocateStatus)
     IF (ALLocateStatus /=0) STOP "*** NOT ENOUGH MEMORY ***"   
@@ -1003,12 +1018,15 @@ module GENERATEM
 !           XABSC_WEIG_IN(I,2)=0
 !        ENDDO
 !--------------------------------------------------
-    READ(ADELE) ((NDMFS(I,J),I=1,5),J=1,NumEle),((ELEPAR(J,I),J=1,3),I=1,NumEle),((LM(J,I),J=1,NEleAss),I=1,NumEle)
+    READ(ADELE) ((NDMFS(I,J),I=1,6),J=1,NumEle),((ELEPAR(J,I),J=1,4),I=1,NumEle),((LM(J,I),J=1,NEleAss),I=1,NumEle)
 !   GENERATE CONSTITUTIVE MATRIX
     CALL G_KCS(2,ITYPE,E,PR)
 !   GENERATE LOAD VECTOR  
     CALL GAULEG(NITP_BC,XABSC_WEIG_BC(1,1),XABSC_WEIG_BC(1,2))
+!   CALL CPU_TIME(TT1)
     CALL GAULEG(NITP_IN,XABSC_WEIG_IN(1,1),XABSC_WEIG_IN(1,2)) 
+!   CALL CPU_TIME(TT2)
+!   WRITE(*,*) TT2-TT1
 !
     READ(ADBC) (NPAR(J),J=1,7)
 !
@@ -1018,7 +1036,7 @@ module GENERATEM
     BcType=NPAR(1)
     SELECT CASE(BcType)
     CASE(1)
-        CALL MFS_LINE_G(ADBC,NEleAss,THIC,INDSP)
+        CALL MFS_LINE_G(ADBC,NEleAss,THIC)
     CASE DEFAULT
         WRITE(*,*), "ERROR, WRONG INPUT IN GENERATE BOUNDARY PROCEDURE"
         STOP
@@ -1031,7 +1049,7 @@ module GENERATEM
           K=LM(J,I)
           IF (K.GE.I) THEN
 !   CALCULATE ENTRIES OF STIFFNESS MATRIX  
-             CALL QUADS_MFS_STIFF_V2(I,K,NumEle,NEleAss,ELEPAR(1,1),NDMFS(1,1),THIC,INDSP)
+             CALL QUADS_MFS_STIFF_V2(I,K,NEleAss,THIC)
           ENDIF
        ENDDO              
     ENDDO
@@ -1048,7 +1066,7 @@ module GENERATEM
 !}}}
     END SUBROUTINE QUADS_MFS_G   
 !
-    SUBROUTINE MFS_LINE_G(ADBC,NEleAss,THIC,INDSP)
+    SUBROUTINE MFS_LINE_G(ADBC,NEleAss,THIC)
 !{{{
 !--------------------------------------------------
 !   GENERATE LOAD VECTOR
@@ -1057,8 +1075,8 @@ module GENERATEM
     IMPLICIT NONE
     INTEGER,INTENT(IN) :: ADBC,NEleAss
     REAL(8),INTENT(INOUT) :: THIC
-    INTEGER :: INDSP
 !   ASSISTANT VARIABLES
+    INTEGER :: INDSP
     INTEGER :: I,J,K,JJ,KK,JJJ
     INTEGER :: NumBc
     INTEGER :: ALLocateStatus
@@ -1151,7 +1169,7 @@ module GENERATEM
              YY = YM+YL*XABSC_WEIG_BC(JJ,1)
              DIV= XABSC_WEIG_BC(JJ,2)
 !
-             HI = QUADS_MFS_HIHJ(NEleAss,L,NPORMAX,XX,YY,INDSP)
+             HI = QUADS_MFS_HIHJ(NEleAss,L,NPORMAX,XX,YY)
              DO KK=1,NPORMAX
                 S(KK)= S(KK) + HI(KK)*DIV
              ENDDO
@@ -1224,11 +1242,11 @@ module GENERATEM
 !******************************
 !  METHOD OF WEAK FORM
 !******************************
-!                CALL MFS_LINE_STIFF_WEAK(L1,L2,I,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC,INDSP)
+!                CALL MFS_LINE_STIFF_WEAK(L1,L2,I,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC)
 !******************************
 !  PENALTY METHOD
 !******************************
-                 CALL MFS_LINE_STIFF_PENALTY(L1,L2,I,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC,INDSP)
+                 CALL MFS_LINE_STIFF_PENALTY(L1,L2,I,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC)
              ENDDO
           ENDDO
         ENDIF
@@ -1243,7 +1261,7 @@ module GENERATEM
 !}}}
     END SUBROUTINE MFS_LINE_G
 !
-    SUBROUTINE MFS_LINE_STIFF_WEAK(II,JJ,KK,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC,INDSP)
+    SUBROUTINE MFS_LINE_STIFF_WEAK(II,JJ,KK,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC)
 !{{{
 !--------------------------------------------------
 !   GENERATE STIFFNESS MATRIX RESULT FROM BCs
@@ -1252,7 +1270,6 @@ module GENERATEM
     INTEGER :: II,JJ,KK,NEleAss
     REAL(8) :: NX,NY,XM,XL,YM,YL,LENGTH
     REAL(8) :: THIC
-    INTEGER :: INDSP
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K,L
     INTEGER :: LL
@@ -1262,7 +1279,7 @@ module GENERATEM
 !
     LOGICAL :: IND1_X,IND1_Y,IND2_X,IND2_Y 
     REAL(8) :: HIHJ(NPOR_MAX*NPOR_MAX,4)
-    REAL(8) :: HI(NPOR_MAX,3),HJ(NPOR_MAX,3)
+    REAL(8) :: HI(3,NPOR_MAX),HJ(3,NPOR_MAX)
     REAL(8) :: XTMP,YTMP
     REAL(8) :: WEIGHT
     REAL(8) :: CONST1
@@ -1299,10 +1316,10 @@ module GENERATEM
 !
     L=NPOR1*NPOR2
     DO I=1,L
-       HIHJ(1,I)=0.0D0
-       HIHJ(2,I)=0.0D0
-       HIHJ(3,I)=0.0D0
-       HIHJ(4,I)=0.0D0
+       HIHJ(I,1)=0.0D0
+       HIHJ(I,2)=0.0D0
+       HIHJ(I,3)=0.0D0
+       HIHJ(I,4)=0.0D0
     ENDDO
 !
 !    DO I=1,3
@@ -1316,16 +1333,16 @@ module GENERATEM
          XTMP = XM+XL*XABSC_WEIG_IN(I,1)
          YTMP = YM+YL*XABSC_WEIG_IN(I,1)
 !
-         CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,INDSP,HI(1,1),HJ(1,1))
+         CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,HI(1,1),HJ(1,1))
 !
          WEIGHT=XABSC_WEIG_IN(I,2)
          DO J=1,NPOR1
             DO K=1,NPOR2
                LL=(J-1)*NPOR2+K
-               HIHJ(LL,1)=HIHJ(LL,1)+HI(J,1)*HJ(K,2)*WEIGHT
-               HIHJ(LL,2)=HIHJ(LL,2)+HI(J,1)*HJ(K,3)*WEIGHT
-               HIHJ(LL,3)=HIHJ(LL,3)+HI(J,2)*HJ(K,1)*WEIGHT
-               HIHJ(LL,4)=HIHJ(LL,4)+HI(J,3)*HJ(K,1)*WEIGHT
+               HIHJ(LL,1)=HIHJ(LL,1)+HI(1,J)*HJ(2,K)*WEIGHT
+               HIHJ(LL,2)=HIHJ(LL,2)+HI(1,J)*HJ(3,K)*WEIGHT
+               HIHJ(LL,3)=HIHJ(LL,3)+HI(2,J)*HJ(1,K)*WEIGHT
+               HIHJ(LL,4)=HIHJ(LL,4)+HI(3,J)*HJ(1,K)*WEIGHT
             ENDDO
          ENDDO
       ENDDO
@@ -1352,7 +1369,7 @@ module GENERATEM
 !}}}
     END SUBROUTINE MFS_LINE_STIFF_WEAK
 !
-    SUBROUTINE MFS_LINE_STIFF_PENALTY(II,JJ,KK,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC,INDSP)
+    SUBROUTINE MFS_LINE_STIFF_PENALTY(II,JJ,KK,NEleAss,NX,NY,XM,XL,YM,YL,LENGTH,THIC)
 !{{{
 !--------------------------------------------------
 !   GENERATE STIFFNESS MATRIX RESULT FROM BCs
@@ -1361,7 +1378,6 @@ module GENERATEM
     INTEGER :: II,JJ,KK,NEleAss
     REAL(8) :: NX,NY,XM,XL,YM,YL,LENGTH
     REAL(8) :: THIC
-    INTEGER :: INDSP
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K,L
     INTEGER :: LL
@@ -1409,8 +1425,8 @@ module GENERATEM
          YTMP = YM+YL*XABSC_WEIG_IN(I,1)
          WEIGHT=XABSC_WEIG_IN(I,2)
 !
-         HI = QUADS_MFS_HIHJ(NEleAss,II,NPOR1,XTMP,YTMP,INDSP)
-         HJ = QUADS_MFS_HIHJ(NEleAss,JJ,NPOR2,XTMP,YTMP,INDSP)
+         HI = QUADS_MFS_HIHJ(NEleAss,II,NPOR1,XTMP,YTMP)
+         HJ = QUADS_MFS_HIHJ(NEleAss,JJ,NPOR2,XTMP,YTMP)
          DO J=1,NPOR1
             DO K=1,NPOR2
                LL=(J-1)*NPOR2+K
@@ -1438,7 +1454,7 @@ module GENERATEM
     IMPLICIT NONE
     INTEGER,INTENT(IN) :: II,JJ,KK,NPOR1,NPOR2
     LOGICAL            :: IND1_X,IND1_Y,IND2_X,IND2_Y
-    REAL(8)            :: S(NPOR1*NPOR2,4)
+    REAL(8)            :: S(NPOR_MAX*NPOR_MAX,4)
 !   ASSISTANT VARIABLES
     INTEGER :: I,J,K,L
     INTEGER :: JMIN,JMAX
@@ -1512,7 +1528,7 @@ module GENERATEM
 !}}}
     END SUBROUTINE MFS_LINE_ADDBAN
 !
-    SUBROUTINE QUADS_MFS_STIFF_V2(II,JJ,NumEle,NEleAss,AELEPAR,ANDMFS,THIC,INDSP)
+    SUBROUTINE QUADS_MFS_STIFF_V2(II,JJ,NEleAss,THIC)
 !{{{
 ! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 ! .   CALCULATE STIFFNESS MATRIX OF TRUSS_MFS                         .
@@ -1524,11 +1540,8 @@ module GENERATEM
 ! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
     IMPLICIT NONE
     INTEGER,INTENT(IN) :: II,JJ
-    INTEGER            :: NumEle,NEleAss
-    INTEGER            :: ANDMFS(5,NumEle)
-    REAL(8)            :: AELEPAR(3,NumEle)
+    INTEGER            :: NEleAss
     REAL(8)            :: THIC
-    INTEGER            :: INDSP
 !   ASSISTANT VARIABLES
     INTEGER            :: I,J,K,L
     INTEGER            :: N,M
@@ -1541,8 +1554,8 @@ module GENERATEM
     REAL(8)            :: HIHJH(NPOR_MAX*NPOR_MAX,4),HIHJG(NPOR_MAX*NPOR_MAX,4)
     REAL(8)            :: KCS1,KCS2,KCS3,CONST1
 !
-    N       =  ANDMFS(1,II)
-    M       =  ANDMFS(1,JJ)
+    N       =  NDMFS(1,II)
+    M       =  NDMFS(1,JJ)
 !
     IND1    = NDMFS(2,II) 
     IND2    = NDMFS(2,JJ)
@@ -1566,12 +1579,10 @@ module GENERATEM
         NPOR2=NDOF(1,M)
     ENDIF
 !
-    LENGTHN=AELEPAR(3,II)
-    LENGTHM=AELEPAR(3,JJ)
     XM=X(N)
     YM=Y(N)
-    XL=LENGTHN
-    YL=LENGTHN
+    XL=ELEPAR(3,II)
+    YL=ELEPAR(4,II)
 !
 !    DO I=1,NPOR_MAX*NPOR_MAX
 !       STIFF_IJ(1,I)=0.0D0
@@ -1597,7 +1608,7 @@ module GENERATEM
        XTMP=XM+XL*XABSC_WEIG_IN(I,1)
        WEIGHT=XABSC_WEIG_IN(I,2)
 !
-       CALL QUADS_MFS_GAUSSG_V2(N,M,II,JJ,NPOR1,NPOR2,NEleAss,XTMP,YM,YL,HIHJG(1,1),INDSP,LENGTHM,EXPN1,L)
+       CALL QUADS_MFS_GAUSSG_V2(N,M,II,JJ,NPOR1,NPOR2,NEleAss,XTMP,YM,YL,HIHJG(1,1),EXPN1,L)
        DO J=1,L
           HIHJH(J,1)=HIHJH(J,1)+HIHJG(J,1)*WEIGHT
           HIHJH(J,2)=HIHJH(J,2)+HIHJG(J,2)*WEIGHT
@@ -1609,7 +1620,7 @@ module GENERATEM
     KCS1=KCS(1)
     KCS2=KCS(2)
     KCS3=KCS(3)
-    CONST1=THIC*LENGTHN
+    CONST1=THIC*XL
     DO I=1,L
        STIFF_IJ(I,1)=(KCS1*HIHJH(I,1)+KCS3*HIHJH(I,4))*CONST1
        STIFF_IJ(I,2)=(KCS2*HIHJH(I,2)+KCS3*HIHJH(I,3))*CONST1
@@ -1624,25 +1635,24 @@ module GENERATEM
 !!}}}
     END SUBROUTINE QUADS_MFS_STIFF_V2
 !
-    SUBROUTINE QUADS_MFS_GAUSSG_V2(N,M,II,JJ,NPOR1,NPOR2,NEleAss,XTMP,YM,YL,HIHJG,INDSP,LENGTHM,EXPN1,LL)
+    SUBROUTINE QUADS_MFS_GAUSSG_V2(N,M,II,JJ,NPOR1,NPOR2,NEleAss,XTMP,YM,YL,HIHJG,EXPN1,LL)
 !{{{
     IMPLICIT NONE
     INTEGER :: N,M,II,JJ,NPOR1,NPOR2,NEleAss
     REAL(8) :: XTMP,YM,YL
-    REAL(8) :: HIHJG(NPOR1*NPOR2,4)
-    INTEGER :: INDSP
-    REAL(8) :: LENGTHM
+    REAL(8) :: HIHJG(NPOR_MAX*NPOR_MAX,4)
     LOGICAL :: EXPN1
     INTEGER :: LL
 !   ASSISTANT VARIABLES
+    INTEGER :: INDSPI,INDSPJ
     INTEGER :: I,J,K,L
-    INTEGER :: IND1,IND2
     INTEGER :: L1,L2,N1,N2
     REAL(8) :: YTMP
-    REAL(8) :: HI(NPOR1,3),HJ(NPOR2,3)
-    REAL(8) :: S1,S2,SS2,X1,X2,Y1,Y2,XX1,YY1,WEIGHT
+    REAL(8) :: HI(3,NPOR1),HJ(3,NPOR2)
+    REAL(8) :: X1,X2,Y1,Y2,XX1,YY1,WEIGHT
     LOGICAL :: REST1,REST2,REST3,LOGIC1,LOGIC2
-    REAL(8) :: CONST1,CONST2
+    LOGICAL :: EXPRN1
+    REAL(8) :: RAD1,RAD2,SX,SY,S
 !
     DO I=1,4
        DO J=1,LL
@@ -1650,19 +1660,52 @@ module GENERATEM
        ENDDO
     ENDDO
 !
-    CONST1=1/YL/YL
-    CONST2=1/LENGTHM/LENGTHM
+    INDSPI=NDMFS(6,II)
+    INDSPJ=NDMFS(6,JJ)
+!
     XX1=XTMP-X(N)
-    SS2=(XTMP-X(M))*(XTMP-X(M))
+    S=(XTMP-X(M))*(XTMP-X(M))
     DO I=1,NITP_IN     
        YTMP=YM+YL*XABSC_WEIG_IN(I,1)
-       S2=SS2+(YTMP-Y(M))*(YTMP-Y(M))
-       S2=S2*CONST2     
-       IF(S2.GT.1) CYCLE
        YY1=YTMP-Y(N)
-       S1=XX1*XX1+YY1*YY1
-       S1=S1*CONST1
-       IF(S1.GT.1) CYCLE
+!
+       RAD1=ELEPAR(3,JJ)
+       RAD1=1.0/RAD1
+       IF(INDSPJ.EQ.3) THEN
+          RAD2=ELEPAR(4,JJ)
+          RAD2=1.0/RAD2
+!
+          SX=1.0-ABS(XTMP-X(M))*RAD1
+          EXPRN1=SX.LT.1E-8
+          IF(EXPRN1) CYCLE
+          SY=1.0-ABS(YTMP-Y(M))*RAD2
+          EXPRN1=SY.LT.1E-8
+          IF(EXPRN1) CYCLE               
+       ELSE
+           S=S+(YTMP-Y(M))*(YTMP-Y(M))
+           S=S*RAD1*RAD1
+           EXPRN1=S.GT.1.0
+           IF(EXPRN1) CYCLE
+       ENDIF
+!
+       RAD1=ELEPAR(3,II)
+       RAD1=1.0/RAD1
+       IF(INDSPI.EQ.3) THEN
+          RAD2=ELEPAR(4,II)
+          RAD2=1.0/RAD2
+!
+          SX=1.0-ABS(XTMP-X(N))*RAD1
+          EXPRN1=SX.LT.1E-8
+          IF(EXPRN1) CYCLE
+          SY=1.0-ABS(YTMP-Y(N))*RAD2
+          EXPRN1=SY.LT.1E-8
+          IF(EXPRN1) CYCLE               
+       ELSE
+           S=XX1*XX1+YY1*YY1
+           S=S*RAD1*RAD1
+           EXPRN1=S.GT.1.0
+           IF(EXPRN1) CYCLE
+       ENDIF
 !
        WEIGHT=XABSC_WEIG_IN(I,2)
        IF (EXPN1) THEN
@@ -1683,27 +1726,27 @@ module GENERATEM
           LOGIC2=((.NOT.REST2).AND.(REST3.AND.(.NOT.REST2)))
           IF ((LOGIC1).OR.(LOGIC2)) CYCLE
 !
-          CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,INDSP,HI(1,1),HJ(1,1))
+          CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,HI(1,1),HJ(1,1))
 !
           DO J=1,NPOR1
              DO K=1,NPOR2
                 L=(J-1)*NPOR2+K
-                HIHJG(L,1)=HIHJG(L,1)+HI(J,2)*HJ(K,2)*WEIGHT
-                HIHJG(L,2)=HIHJG(L,2)+HI(J,2)*HJ(K,3)*WEIGHT
-                HIHJG(L,3)=HIHJG(L,3)+HI(J,3)*HJ(K,2)*WEIGHT
-                HIHJG(L,4)=HIHJG(L,4)+HI(J,3)*HJ(K,3)*WEIGHT
+                HIHJG(L,1)=HIHJG(L,1)+HI(2,J)*HJ(2,K)*WEIGHT
+                HIHJG(L,2)=HIHJG(L,2)+HI(2,J)*HJ(3,K)*WEIGHT
+                HIHJG(L,3)=HIHJG(L,3)+HI(3,J)*HJ(2,K)*WEIGHT
+                HIHJG(L,4)=HIHJG(L,4)+HI(3,J)*HJ(3,K)*WEIGHT
              ENDDO             
           ENDDO                
        ELSE
-          CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,INDSP,HI(1,1),HJ(1,1))
+          CALL QUADS_MFS_HIHJ_V2(NEleAss,II,JJ,XTMP,YTMP,NPOR1,NPOR2,HI(1,1),HJ(1,1))
 !
           DO J=1,NPOR1
              DO K=1,NPOR2
                 L=(J-1)*NPOR2+K
-                HIHJG(L,1)=HIHJG(L,1)+HI(J,2)*HJ(K,2)*WEIGHT
-                HIHJG(L,2)=HIHJG(L,2)+HI(J,2)*HJ(K,3)*WEIGHT
-                HIHJG(L,3)=HIHJG(L,3)+HI(J,3)*HJ(K,2)*WEIGHT
-                HIHJG(L,4)=HIHJG(L,4)+HI(J,3)*HJ(K,3)*WEIGHT
+                HIHJG(L,1)=HIHJG(L,1)+HI(2,J)*HJ(2,K)*WEIGHT
+                HIHJG(L,2)=HIHJG(L,2)+HI(2,J)*HJ(3,K)*WEIGHT
+                HIHJG(L,3)=HIHJG(L,3)+HI(3,J)*HJ(2,K)*WEIGHT
+                HIHJG(L,4)=HIHJG(L,4)+HI(3,J)*HJ(3,K)*WEIGHT
              ENDDO             
           ENDDO 
        ENDIF
@@ -1725,7 +1768,7 @@ module GENERATEM
     IMPLICIT NONE
     INTEGER,INTENT(IN) :: II,JJ,NPOR1,NPOR2
     LOGICAL            :: IND1_X,IND1_Y,IND2_X,IND2_Y
-    REAL(8)            :: S(NPOR1*NPOR2,4)
+    REAL(8)            :: S(NPOR_MAX*NPOR_MAX,4)
 !   ASSISTANT VARIABLES
     INTEGER :: N,M
 !
