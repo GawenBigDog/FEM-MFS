@@ -17,7 +17,9 @@
          INTEGER :: IOUT4 = 10     ! C MATRIX
          INTEGER :: IOUT5 = 11     ! STATIC DISPLACEMENT DATA
          INTEGER :: IOUT8 = 15     ! DYNAMIC DISPLACEMENT DATA
+         INTEGER :: IOUT9 = 18     ! STATIC DISP FOR MATLAB
          INTEGER :: IOUT6 = 12     ! STRESS DATA
+         INTEGER :: IOUT10 =19     ! STRESS DATA FOR MATLAB
          INTEGER :: IOUT7 = 13     ! TEST DATA
 !
          INTEGER :: ITEM1 = 14     ! TEMPORAL ELEMENT DATA
@@ -47,14 +49,17 @@
         PUBLIC  :: OUTPUTK
         PUBLIC  :: OUTPUTMA
         PUBLIC  :: OUTPUTDISP
+        PUBLIC  :: OUTPUTDISP_M
         PUBLIC  :: OUTPUTDISPD
         PUBLIC  :: OUTPUTSTRESS
+        PUBLIC  :: OUTPUTSTRESS_M
 !  
         CONTAINS
 ! * * * * * * * * * * * * * * * * * * *
 ! *     SUBROUTINE OPENFILES          *
 ! * * * * * * * * * * * * * * * * * * *
         SUBROUTINE OPENFILES()
+        USE WAREHOUSE, ONLY : FILE_NAME
 !{{{
         USE Warehouse_FILE
         IMPLICIT NONE
@@ -63,15 +68,16 @@
 ! - - - - - - - - - - - - - - -
         LOGICAL :: EX
 !--IF DISCOVERY.IN DOES NOT EXIST: STOP
-!
-        INQUIRE(FILE ="DISCOVERY.IN",EXIST=EX)
+!     
+        WRITE(*,*) 'DISCOVERY'//FILE_NAME//'.IN'
+        INQUIRE(FILE ='DISCOVERY'//FILE_NAME//'.IN',EXIST=EX)
         IF (.NOT.EX) THEN
              PRINT *, "*** STOP *** FILE DISCOVERY.IN DOES NOT EXIST !"
              STOP
         END IF
 !       
 !--OPEN FILES: STORE INPUT DATA
-        OPEN(FileAD%IIN   ,  FILE = "DISCOVERY.IN",  STATUS = "OLD")
+        OPEN(FileAD%IIN   ,  FILE ='DISCOVERY'//FILE_NAME//'.IN', STATUS="OLD")
 !--OPEN FILES: SYSTEM DATA
         OPEN(FileAD%IOUT  ,  FILE = "DISCOVERY.OUT", STATUS = "REPLACE")
         OPEN(FileAD%IOUT2 ,  FILE = "K.OUT",     STATUS = "REPLACE")
@@ -79,7 +85,9 @@
         OPEN(FileAD%IOUT4 ,  FILE = "C.OUT",     STATUS = "REPLACE")
         OPEN(FileAD%IOUT5 ,  FILE = "DISP.OUT",  STATUS = "REPLACE")
         OPEN(FileAD%IOUT8 ,  FILE = "DISPD.OUT", STATUS = "REPLACE")
+        OPEN(FileAD%IOUT9 ,  FILE = "DISP_M.OUT", STATUS = "REPLACE")
         OPEN(FileAD%IOUT6 ,  FILE = "STRESS.OUT",STATUS = "REPLACE")
+        OPEN(FileAD%IOUT10 , FILE = "STRESS_M.OUT",STATUS = "REPLACE")
         OPEN(FileAD%IOUT7 ,  FILE = "TEST.OUT",  STATUS = "REPLACE")
 !
         OPEN(FileAD%ITEM1 ,  FORM = "UNFORMATTED", STATUS = "SCRATCH")
@@ -106,6 +114,8 @@
         CLOSE(FileAD%IOUT6)
         CLOSE(FileAD%IOUT7)
         CLOSE(FileAD%IOUT8)
+        CLOSE(FileAD%IOUT9)
+        CLOSE(FileAD%IOUT10)
 !
         CLOSE(FileAD%ITEM1)
         CLOSE(FileAD%ITEM2)
@@ -212,6 +222,28 @@
         I=FileAD%IOUT8
 !}}}
         END FUNCTION OutputDispD
+!
+        INTEGER FUNCTION OutputDisp_M() RESULT(I)
+!{{{
+!-----------------------------------------------------
+!       OUTPUT INPUT DOCUMENT ADDRESS
+!-----------------------------------------------------
+        USE Warehouse_FILE                
+        IMPLICIT NONE
+        I=FileAD%IOUT9
+!}}}
+        END FUNCTION OutputDisp_M
+! 
+        INTEGER FUNCTION OutputStress_M() RESULT(I)
+!{{{
+!-----------------------------------------------------
+!       OUTPUT INPUT DOCUMENT ADDRESS
+!-----------------------------------------------------
+        USE Warehouse_FILE                
+        IMPLICIT NONE
+        I=FileAD%IOUT10
+!}}}
+        END FUNCTION OutputStress_M     
 !
         INTEGER FUNCTION OutputStress() RESULT(I)
 !{{{
