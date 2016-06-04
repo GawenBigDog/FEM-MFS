@@ -169,7 +169,10 @@ module SOLVERM
       INTEGER :: MAXAA(1),NN,NWKK,NNM,KKK
       REAL(8) :: A(NWKK),V(1),C,B
       INTEGER :: N,K,KN,KL,KU,KH,IC,KLT,KI,J,ND,KK,L
+      INTEGER :: II
       INTEGER :: MIN0
+!
+      II=1
 !
 !     Perform L*D*L(T) factorization of stiffness matrix
 !
@@ -213,8 +216,9 @@ module SOLVERM
          END DO
          A(KN)=A(KN) - B
          
-  110    IF (A(KN) .LE. 0) THEN
+  110    IF ((A(KN) .LE. 0).AND.(II.EQ.1)) THEN
             WRITE (*,2000) N,A(KN)
+            II=2
             CONTINUE
          END IF
       END DO   

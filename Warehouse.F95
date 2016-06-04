@@ -4,6 +4,8 @@ module WAREHOUSE
     PUBLIC :: RELEASE
 !{{{
 !        CONSTANTS
+         INTEGER :: NFILE
+         CHARACTER(LEN=3) :: FILE_NAME
          REAL(8), PARAMETER :: Pi=3.14159265354
 !--------------------------------------------------
 !   WAREHOUSE FOR SUBROUTINE GLOBALD
@@ -19,6 +21,12 @@ module WAREHOUSE
          INTEGER :: DYNAMIC = 0
          INTEGER :: CONTACT = 0
          INTEGER :: NPOR_MAX= 0
+         INTEGER :: PENALTY = 1
+! NUMBER OF INTEGRATION POINTS                            
+         INTEGER :: NITP_BC=14
+         INTEGER :: NIDIV_BC=1
+         INTEGER :: NITP_IN=60
+         INTEGER :: NIDIV_IN=4
 !
          INTEGER :: NEQ     = 0
          INTEGER :: NCQ     = 0
@@ -27,7 +35,7 @@ module WAREHOUSE
 !-------------------------------
 !    FOR PENALTY METHOD
 !-------------------------------
-         REAL(8),PARAMETER :: BETA=1E9
+         REAL(8),PARAMETER :: BETA=1E6
 !--------------------------------------------------
 !   WAREHOUSE FOR SUBROUTINE NODED (FEM)
 !--------------------------------------------------
@@ -107,11 +115,9 @@ module WAREHOUSE
 !        MFS_ITP :  INTEGRATION POINT
 !        NITP    :  NUMBER OF INTEGRATION POINTS
 !-------------------------------------------------------------
-         INTEGER,PARAMETER                     :: NITP=60
+         INTEGER,PARAMETER                     :: NITP=20
+         INTEGER,PARAMETER                     :: NIDIV=8
          INTEGER,DIMENSION(:,:),   ALLOCATABLE :: NDMFS
-! NUMBER OF INTEGRATION POINTS                            
-         INTEGER :: NITP_BC=10
-         INTEGER :: NITP_IN=60
 ! MID-POINT INTEGRATION METHODS FOR THE BOUNDARY
          REAL(8),DIMENSION(:,:),   ALLOCATABLE :: XABSC_WEIG_BC
 ! Gauss-Legendre METHOD FOR THE INNER SPHERE
